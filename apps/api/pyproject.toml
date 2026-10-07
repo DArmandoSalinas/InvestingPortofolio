@@ -1,0 +1,26 @@
+[project]
+name = "portfolio-api"
+version = "0.1.0"
+description = "API de ranking, snapshots y acceso de la plataforma de inversión."
+requires-python = ">=3.12"
+dependencies = [
+  "email-validator>=2.2",
+  "fastapi>=0.115",
+  "httpx>=0.27",
+  "lxml>=5.3",
+  "pandas>=2.2",
+  "pydantic-settings>=2.6",
+  "pywebpush>=2.5.0",
+  "uvicorn[standard]>=0.32",
+  "yfinance>=0.2.50",
+]
+
+[dependency-groups]
+dev = ["pytest>=8.3"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.uv]
+package = false

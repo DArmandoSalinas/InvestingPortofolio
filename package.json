@@ -1,0 +1,10 @@
+{
+  "name": "investing-portfolio",
+  "private": true,
+  "scripts": {
+    "dev": "npm run dev --prefix apps/web",
+    "dev:api": "cd apps/api && uv run uvicorn app.main:app --reload --port 8000",
+    "test:api": "cd apps/api && uv run pytest",
+    "refresh": "cd apps/api && uv run python -m app.refresh_ranking"
+  }
+}

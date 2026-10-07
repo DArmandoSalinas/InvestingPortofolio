@@ -1,0 +1,16 @@
+node_modules
+.next
+out
+dist
+.venv
+__pycache__
+.pytest_cache
+.mypy_cache
+*.pyc
+.env
+.env.local
+apps/web/.env.local
+apps/api/.env
+.supabase
+supabase/.temp
+.DS_Store
