@@ -671,8 +671,7 @@ def create_access(
     role = "admin" if email == settings.admin_email else body.role
     try:
         entry = db.upsert_allowed(email, role, True)
-        db.update_profile(email, {"role": role, "active": True})
-        mail = _deliver_signin(settings, email)
+        mail = _deliver_invitation(settings, email)
     except DatabaseUnavailable:
         raise HTTPException(status_code=503, detail="La base de datos no responde") from None
     return AccessEntry(
@@ -684,11 +683,11 @@ def create_access(
     )
 
 
-def _deliver_signin(settings: Settings, email: str) -> str:
-    from app.mailer import send_signin
+def _deliver_invitation(settings: Settings, email: str) -> str:
+    from app.mailer import send_invitation
 
     try:
-        return send_signin(settings, email)
+        return send_invitation(settings, email)
     except ValueError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from None
 
@@ -708,7 +707,7 @@ def resend_access_link(
         raise HTTPException(status_code=503, detail="La base de datos no responde") from None
     if current is None or not current.get("active"):
         raise HTTPException(status_code=400, detail="Ese correo no está activo")
-    mail = _deliver_signin(settings, email)
+    mail = _deliver_invitation(settings, email)
     return AccessEntry(
         email=current["email"],
         role=current["role"],

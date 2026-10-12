@@ -23,7 +23,8 @@ export function RankingTable({ rows, style }: { rows: RankingRow[]; style: strin
 
   return (
     <div className="overflow-hidden rounded-[28px] border border-line bg-surface">
-      <table className="w-full border-collapse text-left text-[13px]">
+      <div className="overflow-x-auto">
+        <table className="w-full border-collapse text-left text-[13px]">
         <thead className="sticky top-0 bg-surface text-[11px] uppercase tracking-[0.14em] text-faint">
           <tr className="border-b border-line">
             <th className="px-4 py-3 font-medium">Empresa</th>
@@ -91,6 +92,7 @@ export function RankingTable({ rows, style }: { rows: RankingRow[]; style: strin
           )}
         </tbody>
       </table>
+      </div>
       {comparesWithUs ? (
         <p className="border-t border-line px-4 py-3 text-xs text-faint">
           EE.UU. junto al valor: el sector en México tiene menos de 8 emisoras, así que la

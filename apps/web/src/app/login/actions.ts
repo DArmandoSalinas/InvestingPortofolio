@@ -7,6 +7,60 @@ function siteUrl() {
   return process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 }
 
+export async function signInWithPassword(formData: FormData) {
+  const email = String(formData.get("email") ?? "")
+    .trim()
+    .toLowerCase();
+  const password = String(formData.get("password") ?? "");
+
+  if (!email.includes("@")) {
+    redirect("/login?error=correo");
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  });
+
+  if (error) {
+    const message = error.message.toLowerCase();
+    if (message.includes("email_not_allowed") || message.includes("database error")) {
+      redirect("/login?error=invitacion");
+    }
+    if (message.includes("invalid") || message.includes("credentials")) {
+      redirect("/login?error=credentials");
+    }
+    redirect("/login?error=credentials");
+  }
+
+  redirect("/");
+}
+
+export async function resetPassword(formData: FormData) {
+  const email = String(formData.get("email") ?? "")
+    .trim()
+    .toLowerCase();
+
+  if (!email || !email.includes("@")) {
+    redirect("/login?error=correo");
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${siteUrl()}/auth/callback?next=/bienvenida`,
+  });
+
+  if (error) {
+    const message = error.message.toLowerCase();
+    if (message.includes("email_not_allowed") || message.includes("database error")) {
+      redirect("/login?error=invitacion");
+    }
+  }
+
+  redirect("/login?sent=1");
+}
+
 export async function sendLink(formData: FormData) {
   const email = String(formData.get("email") ?? "")
     .trim()
@@ -27,25 +81,7 @@ export async function sendLink(formData: FormData) {
     if (message.includes("email_not_allowed") || message.includes("database error")) {
       redirect("/login?error=invitacion");
     }
-    redirect("/login?error=envio");
   }
 
   redirect("/login?sent=1");
-}
-
-export async function continueWithGoogle() {
-  const supabase = await createClient();
-  const { data, error } = await supabase.auth.signInWithOAuth({
-    provider: "google",
-    options: {
-      redirectTo: `${siteUrl()}/auth/callback`,
-      skipBrowserRedirect: true,
-    },
-  });
-
-  if (error || !data.url) {
-    redirect("/login?error=google");
-  }
-
-  redirect(data.url);
 }

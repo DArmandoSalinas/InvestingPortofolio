@@ -20,30 +20,25 @@ def mail_problem(text: str) -> str:
     return "No se pudo enviar el enlace"
 
 
-def signin_link(settings: Settings, email: str) -> str:
-    redirect = f"{settings.site_url.rstrip('/')}/auth/callback"
+def invite_user(settings: Settings, email: str) -> None:
+    redirect = f"{settings.site_url.rstrip('/')}/auth/confirm?next=/bienvenida"
     headers = {
         "apikey": settings.supabase_service_role_key,
         "Authorization": f"Bearer {settings.supabase_service_role_key}",
         "Content-Type": "application/json",
     }
-    last = ""
-    for kind in ("magiclink", "invite"):
-        try:
-            response = httpx.post(
-                f"{settings.supabase_url}/auth/v1/admin/generate_link",
-                headers=headers,
-                json={"type": kind, "email": email, "options": {"redirect_to": redirect}},
-                timeout=20,
-            )
-        except httpx.HTTPError:
-            raise ValueError("No se pudo enviar el enlace") from None
-        if response.status_code < 300:
-            link = str((response.json() or {}).get("action_link") or "")
-            if link:
-                return link
-        last = response.text
-    raise ValueError(mail_problem(last))
+    try:
+        response = httpx.post(
+            f"{settings.supabase_url}/auth/v1/invite",
+            headers=headers,
+            json={"email": email, "data": {}, "redirect_to": redirect},
+            timeout=20,
+        )
+    except httpx.HTTPError:
+        raise ValueError("No se pudo enviar la invitación") from None
+    
+    if response.status_code >= 300:
+        raise ValueError(mail_problem(response.text))
 
 
 def send_text(recipients: list[str], subject: str, text: str) -> str:
@@ -57,14 +52,9 @@ def send_text(recipients: list[str], subject: str, text: str) -> str:
     return "local"
 
 
-def send_signin(settings: Settings, email: str) -> str:
-    link = signin_link(settings, email)
-    body = (
-        "Usa este enlace para entrar a Inversión. Caduca en una hora.\n\n"
-        f"{link}\n\n"
-        "Si no pediste entrar, ignora este mensaje."
-    )
-    return send_text([email], "Tu enlace para entrar", body)
+def send_invitation(settings: Settings, email: str) -> str:
+    invite_user(settings, email)
+    return "smtp" if smtp_configured() else "supabase"
 
 
 def send_invitation(email: str, temp_password: str, site_url: str) -> str:

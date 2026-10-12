@@ -37,11 +37,11 @@ export function Highlights({ rows, minimum }: { rows: RankingRow[]; minimum: num
 
   return (
     <section className="overflow-hidden rounded-[28px] border border-line bg-surface">
-      <div className="flex items-baseline justify-between px-6 pt-5">
+      <div className="flex flex-col gap-1 px-6 pt-5 sm:flex-row sm:items-baseline sm:justify-between sm:gap-0">
         <h2 className="text-[11px] uppercase tracking-[0.16em] text-muted">
           <Tooltip term="Altas en los tres">Altas en los tres</Tooltip>
         </h2>
-        <p className="text-xs tabular-nums text-faint">{minimum} puntos o más en cada una</p>
+        <p className="text-xs text-faint">{minimum} puntos o más en cada una</p>
       </div>
       {rows.length === 0 ? (
         <p className="px-6 py-8 text-sm text-muted">
@@ -49,11 +49,11 @@ export function Highlights({ rows, minimum }: { rows: RankingRow[]; minimum: num
           mismo tiempo.
         </p>
       ) : (
-        <div className="mt-4 flex flex-wrap border-t border-line">
+        <div className="mt-4 grid grid-cols-1 gap-px border-t border-line bg-line sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {rows.map((row, index) => (
             <motion.article
               key={row.id}
-              className="min-w-[190px] flex-1 border-line px-6 py-5 not-last:border-r"
+              className="bg-surface px-6 py-5"
               initial={reduce ? false : { opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.45, delay: index * 0.05, ease: [0.22, 1, 0.36, 1] }}
@@ -68,7 +68,7 @@ export function Highlights({ rows, minimum }: { rows: RankingRow[]; minimum: num
                 <CountUp value={row.composite ?? 0} />
               </p>
               <p className="mt-3 text-xs tabular-nums text-faint">
-                Crec. {row.growth} · Valor {row.value} · Mom. {row.momentum}
+                Crecimiento {row.growth} · Valor {row.value} · Momentum {row.momentum}
               </p>
             </motion.article>
           ))}

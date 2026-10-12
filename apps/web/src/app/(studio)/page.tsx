@@ -53,7 +53,7 @@ export default async function RankingPage({
     <div className="flex flex-col gap-8">
       <FadeIn>
         <div>
-          <h1 className="text-5xl font-light tracking-tight">Ranking</h1>
+          <h1 className="text-4xl font-light tracking-tight sm:text-5xl">Ranking</h1>
           <p className="mt-2 text-sm leading-6 text-muted">
             Encuentra empresas de EE.UU. y México ordenadas por sus puntuaciones de Crecimiento,
             Valor y Momentum. Cada empresa tiene una puntuación General (promedio de las tres).
