@@ -1,11 +1,30 @@
 "use server";
 
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { apiSend } from "@/lib/api";
 
 function fail(detail: string): never {
   redirect(`/admin/acceso?error=${encodeURIComponent(detail)}`);
+}
+
+async function rememberPassword(data: unknown) {
+  if (!data || typeof data !== "object" || !("temporary_password" in data)) {
+    return;
+  }
+  const password = String(data.temporary_password ?? "");
+  const email = "email" in data ? String(data.email ?? "") : "";
+  if (!password || !email) {
+    return;
+  }
+  const jar = await cookies();
+  jar.set("invite_flash", JSON.stringify({ email, password }), {
+    httpOnly: true,
+    sameSite: "lax",
+    path: "/admin/acceso",
+    maxAge: 180,
+  });
 }
 
 export async function invite(formData: FormData) {
@@ -17,13 +36,19 @@ export async function invite(formData: FormData) {
   if (!result.ok) {
     fail(result.detail);
   }
+  await rememberPassword(result.data);
   revalidatePath("/admin/acceso");
   redirect(`/admin/acceso?enviado=${delivery(result.data)}`);
 }
 
 function delivery(data: unknown) {
-  if (data && typeof data === "object" && "mail" in data && data.mail === "smtp") {
-    return "correo";
+  if (data && typeof data === "object" && "mail" in data) {
+    if (data.mail === "smtp") {
+      return "correo";
+    }
+    if (data.mail === "error") {
+      return "error";
+    }
   }
   return "local";
 }
@@ -36,6 +61,7 @@ export async function resendLink(formData: FormData) {
   if (!result.ok) {
     fail(result.detail);
   }
+  await rememberPassword(result.data);
   revalidatePath("/admin/acceso");
   redirect(`/admin/acceso?enviado=${delivery(result.data)}`);
 }

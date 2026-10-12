@@ -145,8 +145,11 @@ las fases siguientes, salvo un cambio explícito de este documento.
 ### Acceso
 - Tabla `allowed_emails`: correo en minúsculas, rol `admin` o `member`,
   activo.
-- Inicio de sesión con enlace mágico al correo y con Google. Google funciona
-  cuando existen las credenciales; no bloquea el desarrollo local.
+- Inicio de sesión con correo y contraseña. El admin invita desde Acceso:
+  la API crea el usuario con una contraseña temporal legible y la manda por
+  correo. El primer ingreso obliga a cambiarla (`must_change_password`).
+  «¿Olvidaste tu contraseña?» manda un enlace de restablecimiento. Google
+  queda como opción si las credenciales existen.
 - Un trigger rechaza el alta si el correo no está activo en la lista.
 - `ADMIN_EMAIL` es el administrador de arranque: la API lo vuelve a dejar
   activo al iniciar. No se puede revocar desde la pantalla.

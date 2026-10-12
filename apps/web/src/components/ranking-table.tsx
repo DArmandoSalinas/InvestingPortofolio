@@ -22,7 +22,7 @@ export function RankingTable({ rows, style }: { rows: RankingRow[]; style: strin
   const comparesWithUs = rows.some((row) => row.value_reference === "sp500_sector");
 
   return (
-    <div className="overflow-hidden rounded-[28px] border border-line bg-surface">
+    <div className="overflow-x-auto rounded-[28px] border border-line bg-surface">
       <table className="w-full border-collapse text-left text-[13px]">
         <thead className="sticky top-0 bg-surface text-[11px] uppercase tracking-[0.14em] text-faint">
           <tr className="border-b border-line">
