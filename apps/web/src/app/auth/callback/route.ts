@@ -22,5 +22,7 @@ export async function GET(request: Request) {
     return NextResponse.redirect(`${site}/login?error=${key}`);
   }
 
-  return NextResponse.redirect(`${site}/`);
+  const next = url.searchParams.get("next");
+  const destination = next === "/cambiar-contrasena" ? "/cambiar-contrasena" : "/";
+  return NextResponse.redirect(`${site}${destination}`);
 }

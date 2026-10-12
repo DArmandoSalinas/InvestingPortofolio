@@ -9,7 +9,7 @@ export function HoldingForm() {
   const listed = kind === "stock" || kind === "etf";
 
   return (
-    <form action={addHolding} className="flex flex-wrap items-end gap-3">
+    <form action={addHolding} className="grid grid-cols-1 items-end gap-3 sm:flex sm:flex-wrap">
       <label className="flex flex-col gap-2 text-xs uppercase tracking-[0.14em] text-faint">
         Tipo
         <select

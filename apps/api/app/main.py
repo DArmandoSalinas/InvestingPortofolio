@@ -20,6 +20,7 @@ from app.schemas import (
     AccessEntry,
     AccessLink,
     AccessList,
+    PasswordChange,
     AccessPatch,
     Candle,
     CompanyDetail,
@@ -659,6 +660,47 @@ def patch_watch(
         raise HTTPException(status_code=404, detail="Ese activo no está en la lista")
 
 
+def _issue_access_password(
+    db: SupabaseRest,
+    settings: Settings,
+    email: str,
+    invited_by: str,
+) -> dict:
+    from app.db import EmailAlreadyRegistered
+    from app.mailer import send_invitation
+    from app.passwords import issue_temporary_password
+
+    try:
+        return issue_temporary_password(
+            db,
+            email=email,
+            invited_by=invited_by,
+            site_url=settings.site_url,
+            send=send_invitation,
+        )
+    except EmailAlreadyRegistered:
+        raise HTTPException(status_code=409, detail="Ese correo ya está registrado y no se pudo actualizar") from None
+    except DatabaseUnavailable:
+        raise HTTPException(status_code=503, detail="La base de datos no responde") from None
+
+
+@app.post("/me/password")
+def replace_password(
+    body: PasswordChange,
+    db: Annotated[SupabaseRest, Depends(get_db)],
+    user: Annotated[UserContext, Depends(require_user)],
+) -> dict[str, bool]:
+    from app.passwords import change_password
+
+    try:
+        change_password(db, user_id=user.id, email=user.email, new_password=body.password)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from None
+    except DatabaseUnavailable:
+        raise HTTPException(status_code=503, detail="La base de datos no responde") from None
+    return {"ok": True}
+
+
 @app.post("/admin/access", response_model=AccessEntry)
 def create_access(
     body: AccessCreate,
@@ -666,13 +708,16 @@ def create_access(
     settings: Annotated[Settings, Depends(get_settings)],
     admin: Annotated[UserContext, Depends(require_admin)],
 ) -> AccessEntry:
-    del admin
     email = body.email.lower()
     role = "admin" if email == settings.admin_email else body.role
     try:
         entry = db.upsert_allowed(email, role, True)
         db.update_profile(email, {"role": role, "active": True})
-        mail = _deliver_signin(settings, email)
+    except DatabaseUnavailable:
+        raise HTTPException(status_code=503, detail="La base de datos no responde") from None
+    issued = _issue_access_password(db, settings, email, admin.email)
+    try:
+        db.update_profile(email, {"role": role, "active": True, "must_change_password": True})
     except DatabaseUnavailable:
         raise HTTPException(status_code=503, detail="La base de datos no responde") from None
     return AccessEntry(
@@ -680,17 +725,9 @@ def create_access(
         role=entry["role"],
         active=entry["active"],
         protected=email == settings.admin_email,
-        mail=mail,
+        mail=str(issued["mail"]),
+        temporary_password=str(issued["temp_password"]),
     )
-
-
-def _deliver_signin(settings: Settings, email: str) -> str:
-    from app.mailer import send_signin
-
-    try:
-        return send_signin(settings, email)
-    except ValueError as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from None
 
 
 @app.post("/admin/access/link", response_model=AccessEntry)
@@ -700,7 +737,6 @@ def resend_access_link(
     settings: Annotated[Settings, Depends(get_settings)],
     admin: Annotated[UserContext, Depends(require_admin)],
 ) -> AccessEntry:
-    del admin
     email = body.email.lower()
     try:
         current = db.get_allowed(email)
@@ -708,13 +744,14 @@ def resend_access_link(
         raise HTTPException(status_code=503, detail="La base de datos no responde") from None
     if current is None or not current.get("active"):
         raise HTTPException(status_code=400, detail="Ese correo no está activo")
-    mail = _deliver_signin(settings, email)
+    issued = _issue_access_password(db, settings, email, admin.email)
     return AccessEntry(
         email=current["email"],
         role=current["role"],
         active=bool(current["active"]),
         protected=email == settings.admin_email,
-        mail=mail,
+        mail=str(issued["mail"]),
+        temporary_password=str(issued["temp_password"]),
     )
 
 

@@ -323,6 +323,11 @@ class AccessEntry(BaseModel):
     active: bool
     protected: bool = False
     mail: str = ""
+    temporary_password: str = ""
+
+
+class PasswordChange(BaseModel):
+    password: str
 
 
 class AccessList(BaseModel):

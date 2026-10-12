@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { invite, resendLink, updateAccess } from "./actions";
 import { apiGet } from "@/lib/api";
@@ -32,35 +33,58 @@ export default async function AccessPage({
 
   const params = await searchParams;
   const list = await apiGet<AccessList>("/admin/access");
+  const flashRaw = (await cookies()).get("invite_flash")?.value;
+  let flash: { email?: string; password?: string } | null = null;
+  if (flashRaw) {
+    try {
+      flash = JSON.parse(flashRaw) as { email?: string; password?: string };
+    } catch {
+      flash = null;
+    }
+  }
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col">
-      <Link href="/admin/seguimiento" className="text-sm text-muted">
-        Seguimiento
-      </Link>
-      <h1 className="mt-6 text-5xl font-light tracking-tight">Acceso</h1>
+      <div className="flex gap-4 text-sm text-muted">
+        <span className="text-ink">Acceso</span>
+        <Link href="/admin/seguimiento" className="hover:text-ink">
+          Seguimiento
+        </Link>
+      </div>
+      <h1 className="mt-6 text-4xl font-light tracking-tight sm:text-5xl">Acceso</h1>
       <p className="mt-4 max-w-lg text-sm leading-6 text-muted">
-        Al agregar un correo se envía el enlace para entrar. Solo quien esté en esta lista puede usarlo.
+        Al agregar un correo se crea la cuenta y se manda una contraseña temporal. Quien la recibe
+        tiene que cambiarla en el primer inicio de sesión. Solo esta lista puede entrar.
       </p>
       {params.error ? <p className="mt-6 text-sm text-ink">{params.error}</p> : null}
       {params.enviado === "correo" ? (
-        <p className="mt-6 text-sm text-muted">El enlace ya salió hacia ese correo.</p>
+        <p className="mt-6 text-sm text-muted">La invitación ya salió hacia ese correo.</p>
       ) : null}
       {params.enviado === "local" ? (
         <p className="mt-6 text-sm text-muted">
-          El enlace ya se generó. En esta computadora llega a la bandeja local, no a la bandeja real del
-          correo, hasta que configures el envío SMTP.
+          La invitación se generó en la bandeja local. Hasta que SMTP esté configurado no llega a la
+          bandeja real.
+        </p>
+      ) : null}
+      {params.enviado === "error" ? (
+        <p className="mt-6 text-sm text-ink">No se pudo enviar el correo. Usa la contraseña de abajo.</p>
+      ) : null}
+      {flash?.password ? (
+        <p className="mt-6 text-sm leading-6 text-ink">
+          Contraseña temporal de {flash.email}:{" "}
+          <span className="font-medium tracking-wide">{flash.password}</span>
+          . Cópiala si el correo no llega. Desaparece de esta pantalla en unos minutos.
         </p>
       ) : null}
 
-      <form action={invite} className="mt-10 flex flex-wrap items-end gap-3">
+      <form action={invite} className="mt-10 grid grid-cols-1 items-end gap-3 sm:flex sm:flex-wrap">
         <label className="flex flex-col gap-2 text-xs uppercase tracking-[0.14em] text-faint">
           Correo
           <input
             name="email"
             type="email"
             required
-            className="w-72 rounded-2xl border border-line bg-surface px-4 py-3 text-sm normal-case tracking-normal text-ink"
+            className="w-full rounded-2xl border border-line bg-surface px-4 py-3 text-sm normal-case tracking-normal text-ink sm:w-72"
           />
         </label>
         <label className="flex flex-col gap-2 text-xs uppercase tracking-[0.14em] text-faint">
@@ -120,7 +144,7 @@ export default async function AccessPage({
                       <form action={resendLink}>
                         <input type="hidden" name="email" value={entry.email} />
                         <button type="submit" className="text-sm text-muted hover:text-ink">
-                          Enviar enlace
+                          Reenviar invitación
                         </button>
                       </form>
                     ) : null}
