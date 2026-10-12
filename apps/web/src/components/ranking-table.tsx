@@ -1,12 +1,13 @@
 import Link from "next/link";
+import { Tooltip } from "@/components/tooltip";
 import { companyPath, dataNote, marketLabel, sectorLabel } from "@/lib/labels";
 import type { RankingRow } from "@/lib/types";
 
 const COLUMNS = [
-  { key: "growth", label: "Crecimiento", style: "growth" },
-  { key: "value", label: "Valor", style: "value" },
-  { key: "momentum", label: "Momentum", style: "momentum" },
-  { key: "composite", label: "General", style: "" },
+  { key: "growth", label: "Crecimiento", style: "growth", short: "C" },
+  { key: "value", label: "Valor", style: "value", short: "V" },
+  { key: "momentum", label: "Momentum", style: "momentum", short: "M" },
+  { key: "composite", label: "General", style: "", short: "G" },
 ] as const;
 
 function Score({ value }: { value: number | null }) {
@@ -37,7 +38,7 @@ export function RankingTable({ rows, style }: { rows: RankingRow[]; style: strin
                     : ""
                 }`}
               >
-                {column.label}
+                <Tooltip term={column.label}>{column.label}</Tooltip>
               </th>
             ))}
           </tr>
@@ -96,6 +97,11 @@ export function RankingTable({ rows, style }: { rows: RankingRow[]; style: strin
           comparación usa el S&P 500.
         </p>
       ) : null}
+      <div className="border-t border-line px-4 py-3 text-xs text-faint">
+        <Tooltip term="Crecimiento">Crecimiento</Tooltip>, <Tooltip term="Valor">Valor</Tooltip>,{" "}
+        <Tooltip term="Momentum">Momentum</Tooltip> y <Tooltip term="General">General</Tooltip> son
+        puntuaciones de 0 a 100. Pasa el cursor sobre cada término para ver su definición.
+      </div>
     </div>
   );
 }

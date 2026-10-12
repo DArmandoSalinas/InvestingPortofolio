@@ -3,6 +3,7 @@
 import { motion, useReducedMotion } from "framer-motion";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { Tooltip } from "@/components/tooltip";
 import { companyPath } from "@/lib/labels";
 import type { RankingRow } from "@/lib/types";
 
@@ -37,12 +38,15 @@ export function Highlights({ rows, minimum }: { rows: RankingRow[]; minimum: num
   return (
     <section className="overflow-hidden rounded-[28px] border border-line bg-surface">
       <div className="flex items-baseline justify-between px-6 pt-5">
-        <h2 className="text-[11px] uppercase tracking-[0.16em] text-muted">Altas en los tres</h2>
-        <p className="text-xs tabular-nums text-faint">{minimum} o más</p>
+        <h2 className="text-[11px] uppercase tracking-[0.16em] text-muted">
+          <Tooltip term="Altas en los tres">Altas en los tres</Tooltip>
+        </h2>
+        <p className="text-xs tabular-nums text-faint">{minimum} puntos o más en cada una</p>
       </div>
       {rows.length === 0 ? (
         <p className="px-6 py-8 text-sm text-muted">
-          Ninguna empresa de este corte llega a {minimum} en los tres.
+          Ninguna empresa de este corte llega a {minimum} puntos en Crecimiento, Valor y Momentum al
+          mismo tiempo.
         </p>
       ) : (
         <div className="mt-4 flex flex-wrap border-t border-line">
@@ -64,7 +68,7 @@ export function Highlights({ rows, minimum }: { rows: RankingRow[]; minimum: num
                 <CountUp value={row.composite ?? 0} />
               </p>
               <p className="mt-3 text-xs tabular-nums text-faint">
-                C {row.growth} · V {row.value} · M {row.momentum}
+                Crec. {row.growth} · Valor {row.value} · Mom. {row.momentum}
               </p>
             </motion.article>
           ))}
