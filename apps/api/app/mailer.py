@@ -11,6 +11,10 @@ def smtp_configured() -> bool:
     return bool(env_value("SMTP_HOST") and env_value("SMTP_FROM"))
 
 
+def brevo_configured() -> bool:
+    return bool(env_value("BREVO_API_KEY"))
+
+
 def mail_problem(text: str) -> str:
     lowered = text.lower()
     if "rate limit" in lowered or "over_email_send_rate_limit" in lowered:
@@ -50,6 +54,9 @@ def send_text(recipients: list[str], subject: str, text: str) -> str:
     people = [item.strip().lower() for item in recipients if item and "@" in item]
     if not people:
         raise ValueError("No hay correos activos para el envío")
+    if brevo_configured():
+        _brevo(people, subject, text)
+        return "brevo"
     if smtp_configured():
         _smtp(people, subject, text)
         return "smtp"
@@ -109,6 +116,42 @@ def _smtp(recipients: list[str], subject: str, text: str) -> None:
             client.send_message(message)
     except (OSError, smtplib.SMTPException):
         raise ValueError("No se pudo enviar el correo") from None
+
+
+def _brevo(recipients: list[str], subject: str, text: str) -> None:
+    """Envía correo usando la API HTTP de Brevo (SendinBlue)."""
+    api_key = env_value("BREVO_API_KEY")
+    sender_email = env_value("BREVO_SENDER_EMAIL") or "noreply@inversion.app"
+    sender_name = env_value("BREVO_SENDER_NAME") or "Inversión"
+    
+    payload: dict[str, Any] = {
+        "sender": {"email": sender_email, "name": sender_name},
+        "to": [{"email": email} for email in recipients],
+        "subject": subject,
+        "textContent": text,
+    }
+    
+    headers = {
+        "api-key": api_key,
+        "Content-Type": "application/json",
+        "accept": "application/json",
+    }
+    
+    try:
+        response = httpx.post(
+            "https://api.brevo.com/v3/smtp/email",
+            json=payload,
+            headers=headers,
+            timeout=15,
+        )
+    except httpx.HTTPError:
+        raise ValueError("No se pudo enviar el correo por Brevo") from None
+    
+    if response.status_code >= 300:
+        error_text = response.text
+        if "unauthorized" in error_text.lower() or "api_key" in error_text.lower():
+            raise ValueError("La llave de Brevo no es válida") from None
+        raise ValueError(f"No se pudo enviar el correo por Brevo: {error_text[:100]}") from None
 
 
 def _mailpit(recipients: list[str], subject: str, text: str) -> None:
