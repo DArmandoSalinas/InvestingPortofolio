@@ -6,8 +6,9 @@ import httpx
 from app.config import Settings
 
 SNAPSHOT_SELECT = (
-    "as_of,growth,value,momentum,composite,value_reference,calculated,"
+    "as_of,growth,value,momentum,composite,quality,value_reference,calculated,"
     "missing_fields,na_fields,"
+    "operating_margin,net_margin,roe,debt_to_equity,fcf_yield,"
     "companies!inner(id,market,symbol,name,sector,currency)"
 )
 
@@ -168,9 +169,10 @@ class SupabaseRest:
             params={
                 "select": (
                     "id,market,symbol,name,sector,currency,yahoo_symbol,"
-                    "score_snapshots(as_of,growth,value,momentum,composite,value_reference,"
+                    "score_snapshots(as_of,growth,value,momentum,composite,quality,value_reference,"
                     "calculated,revenue_growth_yoy,earnings_growth_yoy,pe,ps,ev_ebitda,"
-                    "return_3m,return_6m,return_12m,price_to_sma200,missing_fields,na_fields)"
+                    "return_3m,return_6m,return_12m,price_to_sma200,operating_margin,net_margin,"
+                    "roe,debt_to_equity,fcf_yield,missing_fields,na_fields)"
                 ),
                 "market": f"eq.{market}",
                 "symbol": f"eq.{symbol}",
@@ -214,6 +216,33 @@ class SupabaseRest:
             headers=self._service_headers({"Prefer": "return=minimal"}),
             params={"id": f"eq.{signal_id}"},
             json=fields,
+        )
+        if response.status_code >= 400:
+            raise DatabaseUnavailable(response.text[:2000])
+
+    def get_signal_performance(self) -> list[dict[str, Any]]:
+        """Obtiene las métricas de desempeño por tipo de señal."""
+        response = self._request(
+            "GET",
+            "/rest/v1/signal_performance",
+            headers=self._service_headers(),
+            params={"select": "*"},
+        )
+        response.raise_for_status()
+        return response.json()
+
+    def upsert_signal_performance(self, rows: list[dict[str, Any]]) -> None:
+        """Actualiza las métricas de desempeño por tipo de señal."""
+        if not rows:
+            return
+        response = self._request(
+            "POST",
+            "/rest/v1/signal_performance",
+            headers=self._service_headers(
+                {"Prefer": "resolution=merge-duplicates,return=minimal"}
+            ),
+            params={"on_conflict": "setup"},
+            json=rows,
         )
         if response.status_code >= 400:
             raise DatabaseUnavailable(response.text[:2000])
@@ -672,6 +701,61 @@ class SupabaseRest:
             json={"last_used_at": datetime.now(timezone.utc).isoformat()},
         )
         return True
+
+    def upsert_performance(self, metrics: dict[str, Any]) -> None:
+        """
+        Actualiza las métricas de desempeño de un tipo de señal.
+
+        Args:
+            metrics: Diccionario con las métricas (setup, total_signals, targets, etc.)
+        """
+        response = self._request(
+            "POST",
+            "/rest/v1/signal_performance",
+            headers=self._service_headers(
+                {"Prefer": "resolution=merge-duplicates,return=minimal"}
+            ),
+            params={"on_conflict": "setup"},
+            json=metrics,
+        )
+        if response.status_code >= 400:
+            raise DatabaseUnavailable(response.text[:2000])
+
+    def get_performance(self, setup: str) -> dict[str, Any] | None:
+        """
+        Obtiene las métricas de desempeño de un tipo de señal.
+
+        Args:
+            setup: Tipo de señal ('impulso' o 'retroceso')
+
+        Returns:
+            Diccionario con métricas o None
+        """
+        response = self._request(
+            "GET",
+            "/rest/v1/signal_performance",
+            headers=self._service_headers(),
+            params={"select": "*", "setup": f"eq.{setup}", "limit": "1"},
+        )
+        response.raise_for_status()
+        rows = response.json()
+        return rows[0] if rows else None
+
+    def list_performance(self) -> list[dict[str, Any]]:
+        """
+        Lista todas las métricas de desempeño por tipo de señal.
+
+        Returns:
+            Lista de métricas
+        """
+        response = self._request(
+            "GET",
+            "/rest/v1/signal_performance",
+            headers=self._service_headers(),
+            params={"select": "*", "order": "setup.asc"},
+        )
+        response.raise_for_status()
+        return response.json()
 
 
 def flatten_snapshot(row: dict[str, Any]) -> dict[str, Any]:

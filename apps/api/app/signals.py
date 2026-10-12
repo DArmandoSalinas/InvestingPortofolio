@@ -145,6 +145,7 @@ def propose(
         setup_reason = "El cierre volvió a la media de 20 sin perder la de 50."
     else:
         return None
+
     stop = min(low_10, sma20)
     if stop >= close:
         return None

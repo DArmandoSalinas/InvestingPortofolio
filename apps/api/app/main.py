@@ -259,6 +259,26 @@ def company_detail(
             },
             as_of if isinstance(as_of, date) else date.fromisoformat(str(as_of)),
         )
+    
+    # Generar quality_note si hay quality
+    quality_note_text = ""
+    if snapshot.get("quality") is not None:
+        from app.quality import quality_note as generate_quality_note
+        # Reconstruir detail desde el snapshot
+        quality_detail = {}
+        if snapshot.get("operating_margin") is not None:
+            quality_detail["operating_margin_score"] = snapshot.get("operating_margin")
+        if snapshot.get("net_margin") is not None:
+            quality_detail["net_margin_score"] = snapshot.get("net_margin")
+        if snapshot.get("roe") is not None:
+            quality_detail["roe_score"] = snapshot.get("roe")
+        if snapshot.get("debt_to_equity") is not None:
+            quality_detail["debt_score"] = snapshot.get("debt_to_equity")
+        if snapshot.get("fcf_yield") is not None:
+            quality_detail["fcf_score"] = snapshot.get("fcf_yield")
+        
+        quality_note_text = generate_quality_note(quality_detail)
+    
     return CompanyDetail(
         market=company["market"],
         symbol=company["symbol"],
@@ -271,12 +291,14 @@ def company_detail(
         value=snapshot.get("value"),
         momentum=snapshot.get("momentum"),
         composite=snapshot.get("composite"),
+        quality=snapshot.get("quality"),
         value_reference=snapshot.get("value_reference"),
         missing_fields=snapshot.get("missing_fields") or [],
         na_fields=snapshot.get("na_fields") or [],
         growth_note=growth_note(notes),
         value_note=value_note(notes),
         momentum_note=momentum_note(notes),
+        quality_note=quality_note_text,
         reading_summary=(reading or {}).get("summary", ""),
         reading_sentiment=(reading or {}).get("x_sentiment", ""),
         reading_caution=(reading or {}).get("caution", ""),
@@ -337,6 +359,38 @@ def signal_record(
     return SignalRecord.model_validate(scoreboard(rows))
 
 
+@app.get("/signals/performance")
+def signals_performance(
+    db: Annotated[SupabaseRest, Depends(get_db)],
+    user: Annotated[UserContext, Depends(require_user)],
+) -> dict[str, Any]:
+    """Obtiene el desempeño histórico por tipo de señal."""
+    del user
+    try:
+        performance = db.get_signal_performance()
+    except DatabaseUnavailable:
+        raise HTTPException(status_code=503, detail="La base de datos no responde") from None
+    
+    result: dict[str, Any] = {}
+    for row in performance:
+        setup = row.get("setup")
+        if setup:
+            result[setup] = {
+                "total_signals": row.get("total_signals", 0),
+                "targets": row.get("targets", 0),
+                "stops": row.get("stops", 0),
+                "expired": row.get("expired", 0),
+                "hit_rate": row.get("hit_rate"),
+                "avg_net_return": row.get("avg_net_return"),
+                "avg_gross_return": row.get("avg_gross_return"),
+                "avg_winner": row.get("avg_winner"),
+                "avg_loser": row.get("avg_loser"),
+                "win_loss_ratio": row.get("win_loss_ratio"),
+                "last_updated": row.get("last_updated"),
+            }
+    return result
+
+
 def _ranking_response(
     resolved: date | None,
     source_rows: list[dict],
@@ -368,6 +422,53 @@ def brief(
         vapid_public_key=settings.vapid_public_key,
         brief=MorningBrief.model_validate(payload) if payload else None,
     )
+
+
+@app.get("/dashboard")
+def daily_dashboard(
+    db: Annotated[SupabaseRest, Depends(get_db)],
+    user: Annotated[UserContext, Depends(require_user)],
+) -> dict[str, Any]:
+    """Genera el dashboard diario 'Qué ver hoy' con insights accionables."""
+    try:
+        # Obtener ranking actual
+        latest_as_of = db.latest_as_of()
+        if not latest_as_of:
+            return {"insights": [], "as_of": None, "has_open_signals": False, "top_company": None}
+        
+        current = db.fetch_snapshots(latest_as_of, None, None)
+        
+        # Obtener ranking anterior
+        previous_as_of = db.calculated_as_of(latest_as_of)
+        previous = db.fetch_snapshots(previous_as_of, None, None) if previous_as_of else None
+        
+        # Obtener señales
+        signals = db.list_signals()
+        
+        # Obtener desempeño de señales
+        performance_rows = db.get_signal_performance()
+        performance = {row["setup"]: row for row in performance_rows}
+        
+        # Obtener perfil del usuario (opcional)
+        profile_row = db.get_investor_profile(user.id)
+        
+        # Generar dashboard
+        from app.daily_dashboard import generate_daily_dashboard
+        
+        dashboard = generate_daily_dashboard(
+            ranking_current=current,
+            ranking_previous=previous,
+            signals=signals,
+            performance=performance,
+            spy_data=None,  # TODO: agregar datos recientes de SPY
+            btc_data=None,  # TODO: agregar datos recientes de BTC
+            profile=profile_row,
+            as_of=latest_as_of,
+        )
+        
+        return dashboard
+    except DatabaseUnavailable:
+        raise HTTPException(status_code=503, detail="La base de datos no responde") from None
 
 
 @app.post("/push/subscriptions", status_code=204, response_model=None)

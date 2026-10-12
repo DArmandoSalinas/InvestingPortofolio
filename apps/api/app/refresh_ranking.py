@@ -18,6 +18,11 @@ RAW_FIELDS = (
     "return_6m",
     "return_12m",
     "price_to_sma200",
+    "operating_margin",
+    "net_margin",
+    "roe",
+    "debt_to_equity",
+    "fcf_yield",
 )
 
 
@@ -46,9 +51,19 @@ def observe(listings: list[Listing], closes: dict[str, list[float]], fundamental
                 "return_6m": trailing_return(prices, 126),
                 "return_12m": trailing_return(prices, 252),
                 "price_to_sma200": price_to_sma200(prices),
+                "operating_margin": facts.get("operating_margin"),
+                "net_margin": facts.get("net_margin"),
+                "roe": facts.get("roe"),
+                "debt_to_equity": facts.get("debt_to_equity"),
+                "fcf_yield": facts.get("fcf_yield"),
             }
         )
     score_observations(rows)
+    
+    # Agregar scores de calidad
+    from app.quality import add_quality_scores
+    add_quality_scores(rows)
+    
     return rows
 
 
@@ -90,6 +105,7 @@ def snapshot_payload(rows: list[dict], as_of: str) -> list[dict]:
             "growth": row["growth"],
             "value": row["value"],
             "momentum": row["momentum"],
+            "quality": row.get("quality"),
             "composite": row["composite"],
             "value_reference": row["value_reference"],
             "missing_fields": row["missing_fields"],
@@ -104,6 +120,7 @@ def snapshot_payload(rows: list[dict], as_of: str) -> list[dict]:
 
 def summarize(rows: list[dict]) -> str:
     complete = sum(1 for row in rows if row["composite"] is not None)
+    with_quality = sum(1 for row in rows if row.get("quality") is not None)
     highlights = sum(
         1
         for row in rows
@@ -118,6 +135,7 @@ def summarize(rows: list[dict]) -> str:
     unknown = sum(1 for row in rows if row["sector"] == "unknown")
     return (
         f"{len(rows)} emisoras, {complete} con puntuación general, "
+        f"{with_quality} con calidad, "
         f"{highlights} altas en los tres, {fallback} valores contra el S&P 500, "
         f"{unknown} sin sector"
     )

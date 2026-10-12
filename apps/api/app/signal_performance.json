@@ -1,0 +1,32 @@
+{
+  "period": "out-of-sample",
+  "lookback_years": 5,
+  "rules": [
+    {
+      "setup": "impulso",
+      "total_signals": 1450,
+      "targets": 42,
+      "stops": 266,
+      "expired": 1142,
+      "hit_rate": 0.028965517241379312,
+      "avg_net_return": 0.0039133851488195965,
+      "avg_winner": 0.04757616478305824,
+      "avg_loser": -0.039270241896840294,
+      "win_loss_ratio": 1.211506792039553,
+      "beats_spy_rate": 0.44689655172413795
+    },
+    {
+      "setup": "retroceso",
+      "total_signals": 1006,
+      "targets": 276,
+      "stops": 504,
+      "expired": 226,
+      "hit_rate": 0.27435387673956263,
+      "avg_net_return": 0.000678164260205181,
+      "avg_winner": 0.03961813464264607,
+      "avg_loser": -0.025671215698579816,
+      "win_loss_ratio": 1.5432901623290798,
+      "beats_spy_rate": 0.3817097415506958
+    }
+  ]
+}
