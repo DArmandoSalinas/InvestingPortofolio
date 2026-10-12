@@ -38,7 +38,7 @@ export async function invite(formData: FormData) {
   }
   await rememberPassword(result.data);
   revalidatePath("/admin/acceso");
-  redirect(`/admin/acceso?enviado=${delivery(result.data)}`);
+  redirect("/admin/acceso");
 }
 
 function delivery(data: unknown) {
@@ -63,7 +63,7 @@ export async function resendLink(formData: FormData) {
   }
   await rememberPassword(result.data);
   revalidatePath("/admin/acceso");
-  redirect(`/admin/acceso?enviado=${delivery(result.data)}`);
+  redirect("/admin/acceso");
 }
 
 export async function updateAccess(formData: FormData) {

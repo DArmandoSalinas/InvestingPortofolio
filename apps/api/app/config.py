@@ -40,6 +40,7 @@ class Settings(BaseSettings):
     admin_email: str
     rank_highlight_min: int = 70
     cors_origins: str = "http://localhost:3000"
+    brief_email_enabled: bool = False
 
     model_config = SettingsConfigDict(
         env_file=API_DIR / ".env",
