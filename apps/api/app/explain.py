@@ -101,3 +101,53 @@ def momentum_note(row: dict[str, Any]) -> str:
         return "No hay precios suficientes para el momentum."
     sentences = [f"{bit[0].upper()}{bit[1:]}" for bit in bits]
     return ". ".join(sentences) + "."
+
+
+def quality_note(row: dict[str, Any]) -> str:
+    """Genera nota explicativa del score de calidad."""
+    quality = row.get("quality")
+    if quality is None:
+        detail = row.get("quality_detail", {})
+        reason = detail.get("reason", "unknown")
+        
+        if reason == "no_sector":
+            return "No hay sector asignado para calcular calidad."
+        
+        if reason == "insufficient_peers":
+            count = detail.get("peer_count", 0)
+            return f"Solo hay {count} empresas en el sector para comparar (se necesitan al menos 5)."
+        
+        if reason == "no_usable_metrics":
+            return "No hay suficientes métricas fundamentales para calcular calidad."
+        
+        return "No se pudo calcular calidad."
+    
+    detail = row.get("quality_detail", {})
+    components: list[str] = []
+    component_count = detail.get("component_count", 0)
+    
+    if "operating_margin_score" in detail:
+        components.append(f"margen operativo {detail['operating_margin_score']}")
+    
+    if "net_margin_score" in detail:
+        components.append(f"margen neto {detail['net_margin_score']}")
+    
+    if "roe_score" in detail:
+        components.append(f"ROE {detail['roe_score']}")
+    elif detail.get("roe_negative"):
+        components.append("ROE negativo")
+    
+    if "debt_score" in detail:
+        components.append(f"deuda {detail['debt_score']}")
+    
+    if "fcf_score" in detail:
+        components.append(f"flujo de caja libre {detail['fcf_score']}")
+    
+    if not components:
+        return f"Calidad {quality} (calculada sin componentes identificados)."
+    
+    return (
+        f"Calidad {quality} calculada con {component_count} métrica{'s' if component_count != 1 else ''}: "
+        + ", ".join(components)
+        + ". Cada métrica se compara contra su sector usando percentiles robustos."
+    )

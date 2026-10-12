@@ -11,10 +11,26 @@ _CACHE: dict[tuple[str, str, str], dict[str, str]] = {}
 
 INSTRUCTIONS = """Eres el analista de una plataforma privada de estudio. Escribes en español de México.
 Solo puedes usar los datos calculados de este mensaje y publicaciones recientes de X que encuentres con la herramienta.
-No inventes cifras, precios, porcentajes ni fechas. Si un número no está en los datos o en una publicación, no lo escribas.
-No recomiendes comprar ni vender. "Sin operación" es una respuesta válida.
-Responde solo con JSON, sin markdown:
-{"summary":"2 o 3 frases sobre las puntuaciones ya calculadas","x_sentiment":"qué se dice en X, o No encontré publicaciones útiles.","caution":"un riesgo concreto o vacío","report":"una frase en español sobre el trimestre, sin nombres de campos ni cifras crudas, o vacío"}"""
+NUNCA inventes cifras, precios, porcentajes ni fechas. Si un número no está en los datos proporcionados o en una publicación de X, NO lo menciones.
+No recomiendes comprar ni vender. "Sin operación" o "sin conclusión clara" son respuestas válidas y honestas.
+
+Si no tienes suficiente información para formar una opinión fundamentada, es mejor decir "sin conclusión clara" que inventar.
+
+Responde SOLO con JSON válido, sin markdown ni ```json```:
+{
+  "summary": "2 o 3 frases sobre las puntuaciones ya calculadas. Si no hay puntuaciones, di 'No hay suficientes datos para evaluar'",
+  "x_sentiment": "Qué se dice en X sobre esta empresa, con contexto específico. Si no encontraste nada útil, escribe 'No encontré publicaciones útiles'",
+  "caution": "UN riesgo concreto identificado (máximo 2 frases), o cadena vacía si no identificas ninguno",
+  "report": "Una frase en español sobre el último trimestre reportado, SIN nombres de campos técnicos ni cifras crudas. Si no hay datos del trimestre, deja esto vacío"
+}
+
+REGLAS ESTRICTAS:
+- NO uses nombres de campos como "revenue_growth_yoy" o "earnings_growth_yoy" en el texto
+- NO inventes porcentajes o cifras que no estén en los datos proporcionados
+- NO hagas recomendaciones de compra o venta
+- Si algo no está claro, admítelo en lugar de especular
+- Mantén cada campo dentro del límite de caracteres razonable (summary máximo 200 chars)
+"""
 
 
 def reading_from_text(text: str) -> dict[str, str] | None:
@@ -67,28 +83,36 @@ def read_company(api_key: str, company: dict[str, Any], as_of: date) -> dict[str
         return None
     symbol = str(company.get("symbol") or "")
     market = str(company.get("market") or "")
-    cache_key = (market, symbol, f"{as_of.isoformat()}:r3")
+    cache_key = (market, symbol, f"{as_of.isoformat()}:r4")
     cached = _CACHE.get(cache_key)
     if cached:
         return cached
     start = (as_of - timedelta(days=21)).isoformat()
+    
+    # Preparar datos estructurados para Grok
     facts = {
         "empresa": company.get("name"),
         "simbolo": symbol,
         "mercado": market,
         "sector": company.get("sector"),
         "fecha": as_of.isoformat(),
-        "crecimiento": company.get("growth"),
-        "valor": company.get("value"),
-        "momentum": company.get("momentum"),
-        "general": company.get("composite"),
-        "notas": {
+        "puntuaciones": {
+            "crecimiento": company.get("growth"),
+            "valor": company.get("value"),
+            "momentum": company.get("momentum"),
+            "calidad": company.get("quality"),
+            "general": company.get("composite"),
+        },
+        "notas_explicativas": {
             "crecimiento": company.get("growth_note"),
             "valor": company.get("value_note"),
             "momentum": company.get("momentum_note"),
+            "calidad": company.get("quality_note"),
         },
-        "reporte": company.get("report"),
+        "reporte_trimestral": company.get("report"),
+        "proximo_reporte": company.get("next_earnings_date"),
     }
+    
     body = {
         "model": MODEL,
         "instructions": INSTRUCTIONS,

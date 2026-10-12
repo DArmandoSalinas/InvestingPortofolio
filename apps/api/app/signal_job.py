@@ -126,5 +126,65 @@ def refresh_signals() -> None:
             f"señales {datetime.now(MONTERREY).date().isoformat()}: {len(created)} nuevas",
             flush=True,
         )
+        
+        # Actualizar métricas de desempeño por tipo de señal
+        _update_performance_metrics(db)
+        
     finally:
         db.close()
+
+
+def _update_performance_metrics(db: SupabaseRest) -> None:
+    """
+    Calcula y actualiza las métricas de desempeño por tipo de señal.
+    
+    Args:
+        db: Conexión a la base de datos
+    """
+    all_signals = db.list_signals()
+    
+    # Agrupar por setup
+    by_setup: dict[str, list[dict[str, Any]]] = {"impulso": [], "retroceso": []}
+    
+    for signal in all_signals:
+        setup = signal.get("setup")
+        if setup in by_setup:
+            by_setup[setup].append(signal)
+    
+    # Calcular métricas para cada tipo
+    for setup, signals in by_setup.items():
+        closed = [s for s in signals if s.get("status") != "open"]
+        
+        if not closed:
+            continue
+        
+        targets = sum(1 for s in closed if s.get("status") == "target")
+        stops = sum(1 for s in closed if s.get("status") == "stop")
+        expired = sum(1 for s in closed if s.get("status") == "expired")
+        
+        net_returns = [_float(s.get("net_return")) for s in closed if _float(s.get("net_return")) is not None]
+        gross_returns = [_float(s.get("gross_return")) for s in closed if _float(s.get("gross_return")) is not None]
+        
+        winners = [r for r in net_returns if r > 0]
+        losers = [r for r in net_returns if r <= 0]
+        
+        metrics = {
+            "setup": setup,
+            "total_signals": len(closed),
+            "targets": targets,
+            "stops": stops,
+            "expired": expired,
+            "hit_rate": targets / len(closed) if closed else None,
+            "avg_net_return": sum(net_returns) / len(net_returns) if net_returns else None,
+            "avg_gross_return": sum(gross_returns) / len(gross_returns) if gross_returns else None,
+            "avg_winner": sum(winners) / len(winners) if winners else None,
+            "avg_loser": sum(losers) / len(losers) if losers else None,
+            "win_loss_ratio": (
+                (sum(winners) / len(winners)) / abs(sum(losers) / len(losers))
+                if winners and losers and sum(losers) != 0
+                else None
+            ),
+        }
+        
+        db.upsert_performance(metrics)
+        print(f"métricas {setup}: {len(closed)} señales, {targets} objetivos", flush=True)

@@ -1,0 +1,31 @@
+{
+  "status": "not_implemented",
+  "reason": "Requiere snapshots históricos de scores en base de datos",
+  "design": {
+    "methodology": "Dividir empresas en quintiles por score, medir rendimiento posterior",
+    "horizons": [
+      "1 mes",
+      "3 meses",
+      "6 meses",
+      "12 meses"
+    ],
+    "metrics_to_test": [
+      "composite",
+      "quality",
+      "growth",
+      "value",
+      "momentum"
+    ],
+    "expected_outcome": "Quintil 5 (top 20%) debe superar quintil 1 (bottom 20%)"
+  },
+  "implementation_steps": [
+    "1. Guardar snapshots históricos con fecha",
+    "2. Para cada snapshot pasado, obtener precios de cierre",
+    "3. Obtener precios N meses después",
+    "4. Calcular rendimiento para cada empresa",
+    "5. Agrupar por quintil de score",
+    "6. Comparar rendimientos promedios por quintil",
+    "7. Test estadístico (¿quintil 5 > quintil 1 significativamente?)"
+  ],
+  "note": "El sistema ya guarda snapshots calculados. Se puede implementar este backtest en el futuro cuando haya suficiente historia (6+ meses)."
+}

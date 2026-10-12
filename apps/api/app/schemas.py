@@ -19,6 +19,7 @@ class RankingRow(BaseModel):
     value: int | None
     momentum: int | None
     composite: int | None
+    quality: int | None = None
     value_reference: Literal["local", "sp500_sector"] | None
     missing_fields: list[str]
     na_fields: list[str]
@@ -51,12 +52,14 @@ class CompanyDetail(BaseModel):
     value: int | None
     momentum: int | None
     composite: int | None
+    quality: int | None = None
     value_reference: Literal["local", "sp500_sector"] | None
     missing_fields: list[str]
     na_fields: list[str]
     growth_note: str
     value_note: str
     momentum_note: str
+    quality_note: str = ""
     reading_summary: str = ""
     reading_sentiment: str = ""
     reading_caution: str = ""

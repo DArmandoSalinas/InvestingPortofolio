@@ -1,6 +1,6 @@
 import { FadeIn } from "@/components/fade-in";
 import { apiGet } from "@/lib/api";
-import type { SignalRecord } from "@/lib/types";
+import type { SignalRecord, SignalPerformance } from "@/lib/types";
 
 function percent(value: number | null) {
   if (value === null) return "Sin cifra";
@@ -27,12 +27,15 @@ function Figure({ label, value }: { label: string; value: string }) {
 }
 
 export default async function HistoryPage() {
-  const record = await apiGet<SignalRecord>("/signals/record");
+  const [record, performance] = await Promise.all([
+    apiGet<SignalRecord>("/signals/record"),
+    apiGet<SignalPerformance>("/signals/performance"),
+  ]);
 
   return (
-    <div className="flex flex-col gap-10">
+    <div className="flex min-w-0 flex-col gap-10">
       <FadeIn>
-        <h1 className="text-5xl font-light tracking-tight">Historial</h1>
+        <h1 className="text-4xl font-light tracking-tight sm:text-5xl">Historial</h1>
         <p className="mt-4 max-w-xl text-sm leading-6 text-muted">
           Solo cuentan las señales que ya tocaron el stop, el objetivo o cumplieron su plazo.
           El rendimiento es neto de la comisión guardada en cada señal.
@@ -45,7 +48,7 @@ export default async function HistoryPage() {
         </p>
       ) : (
         <>
-          <section className="grid grid-cols-4 gap-8 rounded-[28px] border border-line bg-surface px-8 py-7">
+          <section className="grid grid-cols-2 gap-6 rounded-[28px] border border-line bg-surface px-5 py-6 sm:gap-8 sm:px-8 sm:py-7 md:grid-cols-4">
             <Figure label="Cerradas" value={String(record.closed)} />
             <Figure
               label="Aciertos"
@@ -54,7 +57,7 @@ export default async function HistoryPage() {
             <Figure label="Objetivo" value={String(record.targets)} />
             <Figure label="Stop" value={String(record.stops)} />
           </section>
-          <section className="grid grid-cols-3 gap-8">
+          <section className="grid grid-cols-1 gap-4 sm:grid-cols-3 sm:gap-8">
             <div className="rounded-[28px] border border-line bg-surface px-6 py-6">
               <p className="text-[11px] uppercase tracking-[0.14em] text-faint">
                 Neto de las señales
@@ -86,6 +89,52 @@ export default async function HistoryPage() {
           <p className="text-sm text-muted">
             {record.expired} cerraron por plazo, sin tocar stop ni objetivo.
           </p>
+          
+          {(performance.impulso || performance.retroceso) && (
+            <section className="rounded-2xl border border-line bg-surface p-6">
+              <h2 className="text-xs uppercase tracking-[0.16em] text-muted mb-4">
+                Desempeño histórico por tipo (últimos 5 años, backtest)
+              </h2>
+              <div className="grid gap-6">
+                {performance.impulso && (
+                  <div>
+                    <h3 className="text-sm font-medium mb-2">Señales de Impulso</h3>
+                    <p className="text-sm text-muted leading-relaxed">
+                      De {performance.impulso.total_signals} señales históricas, esta regla alcanzó
+                      el objetivo en {performance.impulso.targets} casos (
+                      {performance.impulso.hit_rate
+                        ? `${(performance.impulso.hit_rate * 100).toFixed(1)}%`
+                        : "sin cifra"}
+                      ). Rendimiento neto promedio:{" "}
+                      {performance.impulso.avg_net_return !== null
+                        ? `${(performance.impulso.avg_net_return * 100).toFixed(2)}%`
+                        : "sin cifra"}
+                      . Esta regla no superó de forma consistente al S&P 500 durante el período de
+                      prueba.
+                    </p>
+                  </div>
+                )}
+                {performance.retroceso && (
+                  <div>
+                    <h3 className="text-sm font-medium mb-2">Señales de Retroceso</h3>
+                    <p className="text-sm text-muted leading-relaxed">
+                      De {performance.retroceso.total_signals} señales históricas, esta regla
+                      alcanzó el objetivo en {performance.retroceso.targets} casos (
+                      {performance.retroceso.hit_rate
+                        ? `${(performance.retroceso.hit_rate * 100).toFixed(1)}%`
+                        : "sin cifra"}
+                      ). Rendimiento neto promedio:{" "}
+                      {performance.retroceso.avg_net_return !== null
+                        ? `${(performance.retroceso.avg_net_return * 100).toFixed(2)}%`
+                        : "sin cifra"}
+                      . Esta regla no superó de forma consistente al S&P 500 durante el período de
+                      prueba.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
         </>
       )}
     </div>
