@@ -61,9 +61,10 @@ def closes_from_frame(frame: Any, symbol: str, alone: bool = False) -> list[floa
 
 def _download_chunk(symbols: list[str]) -> dict[str, list[float]]:
     import yfinance as yf
+    from app.cache import with_rate_limit_retry
 
-    try:
-        frame = yf.download(
+    def fetch():
+        return yf.download(
             symbols,
             period="2y",
             interval="1d",
@@ -72,13 +73,16 @@ def _download_chunk(symbols: list[str]) -> dict[str, list[float]]:
             threads=False,
             group_by="ticker",
         )
-    except Exception:
-        frame = None
+    
+    frame = with_rate_limit_retry(fetch, max_retries=3, delay=2.0)
+    if frame is None:
+        return {symbol: [] for symbol in symbols}
+    
     found = {symbol: closes_from_frame(frame, symbol) for symbol in symbols}
     missing = [symbol for symbol, closes in found.items() if not closes]
     for symbol in missing:
-        try:
-            single = yf.download(
+        def fetch_single():
+            return yf.download(
                 [symbol],
                 period="2y",
                 interval="1d",
@@ -86,7 +90,11 @@ def _download_chunk(symbols: list[str]) -> dict[str, list[float]]:
                 progress=False,
                 threads=False,
             )
-            found[symbol] = closes_from_frame(single, symbol)
+        
+        try:
+            single = with_rate_limit_retry(fetch_single, max_retries=2, delay=1.0)
+            if single is not None:
+                found[symbol] = closes_from_frame(single, symbol)
         except Exception:
             continue
     return found
@@ -211,14 +219,24 @@ def empty_fundamentals() -> dict[str, Any]:
 
 def read_fundamentals(yahoo_symbol: str) -> dict[str, Any]:
     import yfinance as yf
+    from app.cache import with_rate_limit_retry
 
     empty = empty_fundamentals()
-    try:
+    
+    def fetch():
         ticker = yf.Ticker(yahoo_symbol)
         info = ticker.info or {}
         revenue, earnings = _annual_growth(ticker)
+        return ticker, info, revenue, earnings
+    
+    try:
+        result = with_rate_limit_retry(fetch, max_retries=3, delay=2.0)
+        if result is None:
+            return empty
+        ticker, info, revenue, earnings = result
     except Exception:
         return empty
+    
     if revenue is None:
         revenue = _finite(info.get("revenueGrowth"))
     if earnings is None:

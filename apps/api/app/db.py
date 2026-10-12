@@ -491,6 +491,54 @@ class SupabaseRest:
         self.upsert_allowed(email, "admin", True)
         self.update_profile(email, {"role": "admin", "active": True})
 
+    def execute(self, query: str, params: dict[str, Any]) -> None:
+        """Execute a raw SQL query (requires PostgREST RPC or direct connection)."""
+        import json
+
+        response = self._request(
+            "POST",
+            "/rest/v1/rpc/exec_sql",
+            headers=self._service_headers(),
+            json={"query": query, "params": json.dumps(params)},
+        )
+        if response.status_code >= 400:
+            pass
+
+    def list_scheduler_runs(self, limit: int = 50) -> list[dict[str, Any]]:
+        """List recent scheduler runs for admin visibility."""
+        response = self._request(
+            "GET",
+            "/rest/v1/scheduler_runs",
+            headers=self._service_headers(),
+            params={"select": "*", "order": "started_at.desc", "limit": str(limit)},
+        )
+        response.raise_for_status()
+        return response.json()
+
+    def verify_digest_token(self, token: str) -> bool:
+        """Verify a digest API token and update last_used_at."""
+        from datetime import datetime, timezone
+
+        response = self._request(
+            "GET",
+            "/rest/v1/digest_tokens",
+            headers=self._service_headers(),
+            params={"select": "token,active", "token": f"eq.{token}", "limit": "1"},
+        )
+        if response.status_code >= 400:
+            return False
+        rows = response.json()
+        if not rows or not rows[0].get("active"):
+            return False
+        self._request(
+            "PATCH",
+            "/rest/v1/digest_tokens",
+            headers=self._service_headers({"Prefer": "return=minimal"}),
+            params={"token": f"eq.{token}"},
+            json={"last_used_at": datetime.now(timezone.utc).isoformat()},
+        )
+        return True
+
 
 def flatten_snapshot(row: dict[str, Any]) -> dict[str, Any]:
     company = row["companies"]

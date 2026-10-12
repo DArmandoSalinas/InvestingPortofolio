@@ -104,6 +104,106 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@app.get("/api/v1/digest")
+def digest_api(
+    token: Annotated[str, Query()],
+    db: Annotated[SupabaseRest, Depends(get_db)],
+) -> dict:
+    """
+    Read-only digest endpoint for external consumption.
+    Returns daily summary: ranking top, changes, signals, hit rate.
+    Protected by token authentication.
+    """
+    if not db.verify_digest_token(token):
+        raise HTTPException(status_code=401, detail="Token inválido o inactivo")
+    
+    try:
+        latest_as_of = db.calculated_as_of()
+        if not latest_as_of:
+            raise HTTPException(status_code=404, detail="No hay ranking calculado todavía")
+        
+        current = db.fetch_snapshots(latest_as_of, None, None)
+        previous_as_of = db.calculated_as_of(latest_as_of)
+        previous = db.fetch_snapshots(previous_as_of, None, None) if previous_as_of else []
+        
+        from app.scoring import highlights, sort_rows
+        from app.brief import ranking_brief
+        from app.signals import scoreboard
+        
+        settings = get_settings()
+        top = sort_rows(current, None)[:20]
+        highlighted = highlights(current, settings.rank_highlight_min)
+        changes = ranking_brief(current, previous, settings.rank_highlight_min)
+        
+        signals = db.list_signals()
+        open_signals = [s for s in signals if s.get("status") == "open"]
+        closed_signals = [s for s in signals if s.get("status") != "open"]
+        record = scoreboard(signals)
+        
+        latest_brief = db.latest_brief()
+        brief_data = brief_payload(latest_brief) if latest_brief else None
+        
+        return {
+            "as_of": latest_as_of.isoformat(),
+            "previous_as_of": previous_as_of.isoformat() if previous_as_of else None,
+            "ranking": {
+                "top_20": [
+                    {
+                        "symbol": row["symbol"],
+                        "name": row["name"],
+                        "market": row["market"],
+                        "sector": row["sector"],
+                        "composite": row.get("composite"),
+                        "growth": row.get("growth"),
+                        "value": row.get("value"),
+                        "momentum": row.get("momentum"),
+                    }
+                    for row in top
+                ],
+                "highlights": [
+                    {
+                        "symbol": row["symbol"],
+                        "name": row["name"],
+                        "market": row["market"],
+                        "composite": row.get("composite"),
+                    }
+                    for row in highlighted
+                ],
+                "changes": {
+                    "compared": changes["compared"],
+                    "entered": len(changes["entered"]),
+                    "left": len(changes["left"]),
+                    "movers": len(changes["movers"]),
+                },
+            },
+            "signals": {
+                "open": len(open_signals),
+                "open_list": [
+                    {
+                        "symbol": s["symbol"],
+                        "name": s["name"],
+                        "as_of": str(s["as_of"]),
+                        "setup": s.get("setup"),
+                        "confidence": s.get("confidence"),
+                    }
+                    for s in open_signals[:10]
+                ],
+                "new_today": len([s for s in open_signals if str(s.get("as_of")) == latest_as_of.isoformat()]),
+            },
+            "track_record": {
+                "total_closed": record.get("total", 0),
+                "hits": record.get("hits", 0),
+                "hit_rate": record.get("hit_rate"),
+                "average_return": record.get("average_return"),
+                "vs_spy": record.get("vs_spy"),
+                "vs_btc": record.get("vs_btc"),
+            },
+            "brief": brief_data,
+        }
+    except DatabaseUnavailable:
+        raise HTTPException(status_code=503, detail="La base de datos no responde") from None
+
+
 @app.get("/me", response_model=MeResponse)
 def me(user: Annotated[UserContext, Depends(require_user)]) -> MeResponse:
     return MeResponse(email=user.email, role=user.role, display_name=user.display_name)
