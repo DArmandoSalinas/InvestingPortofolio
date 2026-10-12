@@ -103,8 +103,7 @@ analista. Acceso solo por invitación. La plataforma NO ejecuta operaciones.
   semana. Esa hora ya cae en Monterrey: 7:00 mientras EE. UU. tiene horario
   de verano y 8:00 cuando no. México no cambia el reloj.
 - Contenido: cambios en el ranking, señales del día, noticias y eventos clave
-- Llega como notificación, como correo a quienes están activos en Acceso, y
-  abre una pantalla de resumen
+- Llega como notificación y abre una pantalla de resumen
 
 ## Reglas para Grok
 - Usar solo los datos proporcionados más sentimiento reciente en X
@@ -117,8 +116,7 @@ analista. Acceso solo por invitación. La plataforma NO ejecuta operaciones.
   sesiones. La lista de seguimiento se pausa o se reactiva; no se borra una
   señal abierta al pausar su activo.
 - Gestión de invitaciones y usuarios en Acceso. Al agregar un correo se
-  envía el enlace de entrada. Con SMTP sale a la bandeja real; sin SMTP, en
-  esta computadora queda en la bandeja local.
+  crea la cuenta con contraseña temporal que se muestra para copiar.
 
 ## Fases de construcción
 1. Estructura, autenticación con Supabase, sistema de diseño y pantalla de
@@ -227,8 +225,7 @@ las fases siguientes, salvo un cambio explícito de este documento.
   si el día de Monterrey ya tiene snapshot calculado. Si no, lo calcula y lo
   guarda. En el mismo ciclo genera las señales nuevas y cierra las que ya
   tocaron stop, objetivo o el plazo de 10 sesiones. Desde las 9:00 de Nueva
-  York, todos los días, publica el resumen si todavía no existe y lo envía
-  por correo a los accesos activos.
+  York, todos los días, publica el resumen si todavía no existe.
   `npm run refresh` recalcula
   el ranking a mano. `npm run refresh -- --limit 3` prueba el cálculo y no
   escribe la base.

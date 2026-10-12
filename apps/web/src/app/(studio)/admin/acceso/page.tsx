@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { invite, resendLink, updateAccess } from "./actions";
 import { apiGet } from "@/lib/api";
 import { createClient } from "@/lib/supabase/server";
+import { CopyPasswordButton } from "./copy-password";
 
 type AccessList = {
   entries: {
@@ -17,7 +18,7 @@ type AccessList = {
 export default async function AccessPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; enviado?: string }>;
+  searchParams: Promise<{ error?: string }>;
 }) {
   const supabase = await createClient();
   const {
@@ -53,28 +54,24 @@ export default async function AccessPage({
       </div>
       <h1 className="mt-6 text-4xl font-light tracking-tight sm:text-5xl">Acceso</h1>
       <p className="mt-4 max-w-lg text-sm leading-6 text-muted">
-        Al agregar un correo se crea la cuenta y se manda una contraseña temporal. Quien la recibe
-        tiene que cambiarla en el primer inicio de sesión. Solo esta lista puede entrar.
+        Al agregar un correo se crea la cuenta con contraseña temporal. Pásale la contraseña. Al entrar
+        con su correo le pediremos crear una nueva. Solo esta lista puede entrar.
       </p>
       {params.error ? <p className="mt-6 text-sm text-ink">{params.error}</p> : null}
-      {params.enviado === "correo" ? (
-        <p className="mt-6 text-sm text-muted">La invitación ya salió hacia ese correo.</p>
-      ) : null}
-      {params.enviado === "local" ? (
-        <p className="mt-6 text-sm text-muted">
-          La invitación se generó en la bandeja local. Hasta que SMTP esté configurado no llega a la
-          bandeja real.
-        </p>
-      ) : null}
-      {params.enviado === "error" ? (
-        <p className="mt-6 text-sm text-ink">No se pudo enviar el correo. Usa la contraseña de abajo.</p>
-      ) : null}
       {flash?.password ? (
-        <p className="mt-6 text-sm leading-6 text-ink">
-          Contraseña temporal de {flash.email}:{" "}
-          <span className="font-medium tracking-wide">{flash.password}</span>
-          . Cópiala si el correo no llega. Desaparece de esta pantalla en unos minutos.
-        </p>
+        <div className="mt-6 rounded-2xl border border-line bg-surface p-4">
+          <p className="text-xs uppercase tracking-[0.14em] text-faint">Contraseña temporal</p>
+          <div className="mt-2 flex flex-wrap items-center gap-3">
+            <p className="text-sm text-ink">
+              <span className="text-muted">{flash.email}:</span>{" "}
+              <span className="font-mono font-medium tracking-wide">{flash.password}</span>
+            </p>
+            <CopyPasswordButton password={flash.password} />
+          </div>
+          <p className="mt-2 text-xs text-faint">
+            Pásale esta contraseña. Al entrar con su correo le pediremos crear una nueva.
+          </p>
+        </div>
       ) : null}
 
       <form action={invite} className="mt-10 grid grid-cols-1 items-end gap-3 sm:flex sm:flex-wrap">

@@ -20,6 +20,9 @@ def refresh_brief(now: datetime | None = None) -> None:
 
 def deliver_brief(as_of: date) -> None:
     settings = get_settings()
+    if not settings.brief_email_enabled:
+        return
+    
     db = SupabaseRest(settings)
     try:
         row = db.get_brief(as_of)
