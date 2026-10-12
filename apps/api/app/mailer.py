@@ -67,6 +67,25 @@ def send_signin(settings: Settings, email: str) -> str:
     return send_text([email], "Tu enlace para entrar", body)
 
 
+def send_invitation(email: str, temp_password: str, site_url: str) -> str:
+    """Envía correo de invitación con contraseña temporal."""
+    body = f"""Has sido invitado a la plataforma de inversión.
+
+Entra aquí: {site_url.rstrip('/')}/login
+
+Tu correo: {email}
+Contraseña temporal: {temp_password}
+
+En tu primer inicio de sesión se te pedirá cambiar esta contraseña por una nueva y segura.
+
+La invitación expira en 7 días.
+
+---
+Este es un correo automático de Inversión. Si no esperabas esta invitación, ignóralo."""
+    
+    return send_text([email], "Invitación a la plataforma de inversión", body)
+
+
 def _smtp(recipients: list[str], subject: str, text: str) -> None:
     host = env_value("SMTP_HOST")
     port_text = env_value("SMTP_PORT") or "587"

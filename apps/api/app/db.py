@@ -491,6 +491,114 @@ class SupabaseRest:
         self.upsert_allowed(email, "admin", True)
         self.update_profile(email, {"role": "admin", "active": True})
 
+    def create_auth_user(self, email: str, password: str, user_metadata: dict | None = None) -> str:
+        """
+        Crea un usuario en Supabase Auth usando Admin API.
+        Retorna el user_id.
+        """
+        import json
+        
+        payload = {
+            "email": email,
+            "password": password,
+            "email_confirm": True,
+            "user_metadata": user_metadata or {},
+        }
+        
+        response = self._request(
+            "POST",
+            "/auth/v1/admin/users",
+            headers=self._service_headers(),
+            json=payload,
+            timeout=30,
+        )
+        
+        if response.status_code >= 400:
+            raise DatabaseUnavailable(f"Error creando usuario: {response.text[:500]}")
+        
+        user = response.json()
+        return user["id"]
+    
+    def update_auth_user_password(self, user_id: str, new_password: str) -> None:
+        """Actualiza la contraseña de un usuario en Supabase Auth."""
+        response = self._request(
+            "PUT",
+            f"/auth/v1/admin/users/{user_id}",
+            headers=self._service_headers(),
+            json={"password": new_password},
+            timeout=30,
+        )
+        
+        if response.status_code >= 400:
+            raise DatabaseUnavailable(f"Error actualizando contraseña: {response.text[:500]}")
+    
+    def get_user_by_email(self, email: str) -> dict | None:
+        """Obtiene un usuario de Supabase Auth por email."""
+        # Supabase Admin API no tiene búsqueda directa por email
+        # Usamos la tabla profiles como proxy
+        profile = self.get_profile(email)
+        if not profile:
+            return None
+        
+        # Para obtener el user_id, necesitamos buscarlo en auth.users
+        # Como no tenemos acceso directo, retornamos lo que tenemos
+        return profile
+    
+    def save_invitation(self, email: str, temp_password: str, invited_by: str) -> None:
+        """Guarda una invitación en la tabla de invitations."""
+        from datetime import datetime, timezone, timedelta
+        
+        response = self._request(
+            "POST",
+            "/rest/v1/invitations",
+            headers=self._service_headers(
+                {"Prefer": "resolution=merge-duplicates,return=minimal"}
+            ),
+            params={"on_conflict": "email"},
+            json={
+                "email": email,
+                "temp_password": temp_password,
+                "invited_by": invited_by,
+                "invited_at": datetime.now(timezone.utc).isoformat(),
+                "expires_at": (datetime.now(timezone.utc) + timedelta(days=7)).isoformat(),
+            },
+        )
+        
+        if response.status_code >= 400:
+            raise DatabaseUnavailable(response.text[:2000])
+    
+    def mark_invitation_used(self, email: str) -> None:
+        """Marca una invitación como usada."""
+        from datetime import datetime, timezone
+        
+        response = self._request(
+            "PATCH",
+            "/rest/v1/invitations",
+            headers=self._service_headers({"Prefer": "return=minimal"}),
+            params={"email": f"eq.{email}"},
+            json={"used_at": datetime.now(timezone.utc).isoformat()},
+        )
+        
+        if response.status_code >= 400:
+            raise DatabaseUnavailable(response.text[:2000])
+    
+    def get_invitation(self, email: str) -> dict | None:
+        """Obtiene una invitación pendiente."""
+        response = self._request(
+            "GET",
+            "/rest/v1/invitations",
+            headers=self._service_headers(),
+            params={
+                "select": "*",
+                "email": f"eq.{email}",
+                "used_at": "is.null",
+                "limit": "1",
+            },
+        )
+        response.raise_for_status()
+        rows = response.json()
+        return rows[0] if rows else None
+
     def execute(self, query: str, params: dict[str, Any]) -> None:
         """Execute a raw SQL query (requires PostgREST RPC or direct connection)."""
         import json
