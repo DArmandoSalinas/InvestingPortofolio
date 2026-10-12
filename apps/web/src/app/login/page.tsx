@@ -7,6 +7,7 @@ const ERRORS: Record<string, string> = {
   credentials: "Correo o contraseña incorrectos.",
   correo: "Escribe un correo válido.",
   enlace: "El enlace no es válido o ya venció.",
+  session: "Tu sesión expiró. Inicia sesión de nuevo.",
 };
 
 export default async function LoginPage({

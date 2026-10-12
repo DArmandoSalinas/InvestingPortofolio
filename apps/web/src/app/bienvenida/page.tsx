@@ -1,4 +1,6 @@
+import { redirect } from "next/navigation";
 import { Disclaimer } from "@/components/disclaimer";
+import { createClient } from "@/lib/supabase/server";
 import { setPassword } from "./actions";
 
 const ERRORS: Record<string, string> = {
@@ -13,6 +15,15 @@ export default async function WelcomePage({
 }: {
   searchParams: Promise<{ error?: string }>;
 }) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/login?error=session");
+  }
+
   const params = await searchParams;
   const error = params.error ? ERRORS[params.error] : undefined;
 

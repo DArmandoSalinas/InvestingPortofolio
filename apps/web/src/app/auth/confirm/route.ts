@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { safeRedirect } from "@/lib/redirect";
 import type { EmailOtpType } from "@supabase/supabase-js";
 
 export async function GET(request: Request) {
@@ -7,7 +8,7 @@ export async function GET(request: Request) {
   const site = process.env.NEXT_PUBLIC_SITE_URL ?? url.origin;
   const token_hash = url.searchParams.get("token_hash");
   const type = url.searchParams.get("type") as EmailOtpType | null;
-  const next = url.searchParams.get("next") ?? "/";
+  const next = safeRedirect(url.searchParams.get("next"));
 
   if (!token_hash || !type) {
     return NextResponse.redirect(`${site}/login?error=enlace`);

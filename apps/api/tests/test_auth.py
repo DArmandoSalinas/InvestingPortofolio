@@ -79,9 +79,9 @@ def test_invite_user_api_error(mock_post: Mock) -> None:
         invite_user(settings, "user@test.local")
 
 
-@patch("app.mailer.smtp_configured")
 @patch("app.mailer.invite_user")
-def test_send_invitation_with_smtp(mock_invite: Mock, mock_smtp: Mock) -> None:
+@patch("app.mailer.smtp_configured")
+def test_send_invitation_with_smtp(mock_smtp: Mock, mock_invite: Mock) -> None:
     mock_smtp.return_value = True
 
     settings = Settings(
@@ -98,9 +98,9 @@ def test_send_invitation_with_smtp(mock_invite: Mock, mock_smtp: Mock) -> None:
     mock_invite.assert_called_once_with(settings, "user@test.local")
 
 
-@patch("app.mailer.smtp_configured")
 @patch("app.mailer.invite_user")
-def test_send_invitation_without_smtp(mock_invite: Mock, mock_smtp: Mock) -> None:
+@patch("app.mailer.smtp_configured")
+def test_send_invitation_without_smtp(mock_smtp: Mock, mock_invite: Mock) -> None:
     mock_smtp.return_value = False
 
     settings = Settings(
