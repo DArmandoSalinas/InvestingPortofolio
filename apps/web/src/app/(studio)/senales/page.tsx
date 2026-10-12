@@ -2,7 +2,7 @@ import { FadeIn } from "@/components/fade-in";
 import { Tooltip } from "@/components/tooltip";
 import { apiGet } from "@/lib/api";
 import { formatAsOf } from "@/lib/labels";
-import type { SignalBoard, SignalRow } from "@/lib/types";
+import type { SignalBoard, SignalRow, SignalPerformance } from "@/lib/types";
 
 const SETUP: Record<SignalRow["setup"], string> = {
   impulso: "Impulso",
@@ -67,7 +67,7 @@ function SignalCard({ signal }: { signal: SignalRow }) {
         </div>
       </div>
 
-      <div className="mt-4 grid grid-cols-4 gap-4 text-xs">
+      <div className="mt-4 grid grid-cols-2 gap-4 text-xs sm:grid-cols-4">
         <div>
           <div className="text-faint">
             <Tooltip term="Entrada">Entrada</Tooltip>
@@ -118,15 +118,18 @@ function SignalCard({ signal }: { signal: SignalRow }) {
 }
 
 export default async function SignalsPage() {
-  const board = await apiGet<SignalBoard>("/signals");
+  const [board, performance] = await Promise.all([
+    apiGet<SignalBoard>("/signals"),
+    apiGet<SignalPerformance>("/signals/performance"),
+  ]);
   const open = board.signals.filter((signal) => signal.status === "open");
   const closed = board.signals.filter((signal) => signal.status !== "open");
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex min-w-0 flex-col gap-8">
       <FadeIn>
         <div>
-          <h1 className="text-5xl font-light tracking-tight">Señales</h1>
+          <h1 className="text-4xl font-light tracking-tight sm:text-5xl">Señales</h1>
           <p className="mt-2 text-sm leading-6 text-muted">
             Señales de compra generadas por reglas de precio, con stop-loss y objetivo. Cada señal
             dura hasta <Tooltip term="Sesiones">{board.horizon_sessions} sesiones</Tooltip> o hasta
@@ -170,6 +173,52 @@ export default async function SignalsPage() {
         <div className="rounded-2xl border border-line bg-surface p-10 text-center text-sm text-muted">
           Ninguna regla se cumplió. No se inventa una señal.
         </div>
+      )}
+
+      {(performance.impulso || performance.retroceso) && (
+        <section className="rounded-2xl border border-line bg-surface p-6">
+          <h2 className="text-xs uppercase tracking-[0.16em] text-muted mb-4">
+            Desempeño histórico (últimos 5 años, out-of-sample)
+          </h2>
+          <div className="grid gap-6">
+            {performance.impulso && (
+              <div>
+                <h3 className="text-sm font-medium mb-2">Señales de Impulso</h3>
+                <p className="text-sm text-muted leading-relaxed">
+                  En 5 años, esta regla alcanzó el objetivo en{" "}
+                  {performance.impulso.targets} de {performance.impulso.total_signals} casos (
+                  {performance.impulso.hit_rate
+                    ? `${(performance.impulso.hit_rate * 100).toFixed(1)}%`
+                    : "sin cifra"}
+                  ). En promedio dio{" "}
+                  {performance.impulso.avg_net_return !== null
+                    ? `${(performance.impulso.avg_net_return * 100).toFixed(2)}%`
+                    : "sin cifra"}{" "}
+                  en {board.horizon_sessions} sesiones. En este período, esta regla no superó
+                  consistentemente al S&P 500.
+                </p>
+              </div>
+            )}
+            {performance.retroceso && (
+              <div>
+                <h3 className="text-sm font-medium mb-2">Señales de Retroceso</h3>
+                <p className="text-sm text-muted leading-relaxed">
+                  En 5 años, esta regla alcanzó el objetivo en{" "}
+                  {performance.retroceso.targets} de {performance.retroceso.total_signals} casos (
+                  {performance.retroceso.hit_rate
+                    ? `${(performance.retroceso.hit_rate * 100).toFixed(1)}%`
+                    : "sin cifra"}
+                  ). En promedio dio{" "}
+                  {performance.retroceso.avg_net_return !== null
+                    ? `${(performance.retroceso.avg_net_return * 100).toFixed(2)}%`
+                    : "sin cifra"}{" "}
+                  en {board.horizon_sessions} sesiones. En este período, esta regla no superó
+                  consistentemente al S&P 500.
+                </p>
+              </div>
+            )}
+          </div>
+        </section>
       )}
 
       <p className="text-xs leading-5 text-faint">

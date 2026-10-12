@@ -9,6 +9,7 @@ export type RankingRow = {
   value: number | null;
   momentum: number | null;
   composite: number | null;
+  quality: number | null;
   value_reference: "local" | "sp500_sector" | null;
   missing_fields: string[];
   na_fields: string[];
@@ -41,12 +42,14 @@ export type CompanyDetail = {
   value: number | null;
   momentum: number | null;
   composite: number | null;
+  quality: number | null;
   value_reference: "local" | "sp500_sector" | null;
   missing_fields: string[];
   na_fields: string[];
   growth_note: string;
   value_note: string;
   momentum_note: string;
+  quality_note: string;
   reading_summary: string;
   reading_sentiment: string;
   reading_caution: string;
@@ -227,6 +230,43 @@ export type AccessEntry = {
 };
 
 export type SearchParams = Record<string, string | string[] | undefined>;
+
+export type SignalPerformance = {
+  impulso?: {
+    total_signals: number;
+    targets: number;
+    stops: number;
+    expired: number;
+    hit_rate: number | null;
+    avg_net_return: number | null;
+    avg_gross_return: number | null;
+    avg_winner: number | null;
+    avg_loser: number | null;
+    win_loss_ratio: number | null;
+    last_updated: string | null;
+  };
+  retroceso?: {
+    total_signals: number;
+    targets: number;
+    stops: number;
+    expired: number;
+    hit_rate: number | null;
+    avg_net_return: number | null;
+    avg_gross_return: number | null;
+    avg_winner: number | null;
+    avg_loser: number | null;
+    win_loss_ratio: number | null;
+    last_updated: string | null;
+  };
+};
+
+export type DailyDashboard = {
+  as_of: string | null;
+  insights: string[];
+  market_summary: string | null;
+  has_open_signals: boolean;
+  top_company: RankingRow | null;
+};
 
 export function one(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;

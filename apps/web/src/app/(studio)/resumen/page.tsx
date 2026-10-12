@@ -3,7 +3,7 @@ import { BriefAlert } from "@/components/brief-alert";
 import { FadeIn } from "@/components/fade-in";
 import { apiGet } from "@/lib/api";
 import { companyPath, formatAsOf } from "@/lib/labels";
-import type { BriefBoard, BriefMover, BriefName } from "@/lib/types";
+import type { BriefBoard, BriefMover, BriefName, DailyDashboard } from "@/lib/types";
 
 const SETUP = { impulso: "Impulso", retroceso: "Retroceso" };
 
@@ -56,15 +56,18 @@ function Movers({ rows }: { rows: BriefMover[] }) {
 }
 
 export default async function BriefPage() {
-  const board = await apiGet<BriefBoard>("/brief");
+  const [board, dashboard] = await Promise.all([
+    apiGet<BriefBoard>("/brief"),
+    apiGet<DailyDashboard>("/dashboard"),
+  ]);
   const brief = board.brief;
   const reading = [brief?.reading_ranking, brief?.reading_signals, brief?.reading_events].filter(Boolean);
 
   return (
-    <div className="flex max-w-3xl flex-col gap-10">
+    <div className="flex max-w-3xl min-w-0 flex-col gap-10">
       <FadeIn>
         <div className="flex flex-col gap-3">
-          <h1 className="text-5xl font-light tracking-tight">Resumen</h1>
+          <h1 className="text-4xl font-light tracking-tight sm:text-5xl">Resumen</h1>
           <p className="text-sm text-muted">
             Media hora antes de que abra Nueva York
             {brief ? (
@@ -79,6 +82,22 @@ export default async function BriefPage() {
       {brief ? (
         <>
           <p className="text-2xl font-light tracking-tight">{brief.headline}</p>
+          
+          {dashboard.insights && dashboard.insights.length > 0 && (
+            <section className="rounded-2xl border border-line bg-surface p-6">
+              <h2 className="text-[11px] uppercase tracking-[0.14em] text-faint mb-4">
+                Qué ver hoy
+              </h2>
+              <ul className="space-y-3">
+                {dashboard.insights.map((insight, i) => (
+                  <li key={i} className="text-sm leading-relaxed text-muted">
+                    • {insight}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+          
           <section className="flex flex-col gap-3">
             <h2 className="text-[11px] uppercase tracking-[0.14em] text-faint">
               {brief.compared ? "Entraron a las altas" : "Altas en los tres"}
