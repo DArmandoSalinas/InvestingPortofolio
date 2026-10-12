@@ -206,7 +206,8 @@ def quarterly_report(yahoo_symbol: str) -> dict[str, Any] | None:
         return cached[1]
     report = None
     try:
-        frame = yf.Ticker(yahoo_symbol).quarterly_income_stmt
+        ticker = yf.Ticker(yahoo_symbol)
+        frame = ticker.quarterly_income_stmt
         if frame is not None and not getattr(frame, "empty", True):
             columns = sorted(frame.columns, reverse=True)
             periods: list[tuple[str, float | None, float | None]] = []
@@ -226,6 +227,49 @@ def quarterly_report(yahoo_symbol: str) -> dict[str, Any] | None:
     return report
 
 
+_EARNINGS_CACHE: dict[str, tuple[float, str | None]] = {}
+
+
+def next_earnings_date(yahoo_symbol: str) -> str | None:
+    """
+    Obtiene la próxima fecha de reporte de resultados.
+
+    Args:
+        yahoo_symbol: Símbolo de Yahoo Finance
+
+    Returns:
+        Fecha en formato YYYY-MM-DD o None si no está disponible
+    """
+    import time
+
+    import yfinance as yf
+
+    cached = _EARNINGS_CACHE.get(yahoo_symbol)
+    now = time.time()
+    if cached and now - cached[0] < _BAR_TTL_SECONDS:
+        return cached[1]
+
+    earnings_date = None
+    try:
+        ticker = yf.Ticker(yahoo_symbol)
+        # Intentar obtener del calendario
+        calendar = ticker.calendar
+        if calendar is not None and "Earnings Date" in calendar:
+            dates = calendar["Earnings Date"]
+            if hasattr(dates, "iloc") and len(dates) > 0:
+                # Tomar la primera fecha disponible
+                first_date = dates.iloc[0]
+                if hasattr(first_date, "date"):
+                    earnings_date = first_date.date().isoformat()
+                elif isinstance(first_date, str):
+                    earnings_date = first_date[:10]
+    except Exception:
+        pass
+
+    _EARNINGS_CACHE[yahoo_symbol] = (now, earnings_date)
+    return earnings_date
+
+
 def empty_fundamentals() -> dict[str, Any]:
     return {
         "revenue_growth_yoy": None,
@@ -235,6 +279,11 @@ def empty_fundamentals() -> dict[str, Any]:
         "ev_ebitda": None,
         "earnings_non_positive": False,
         "sector": None,
+        "operating_margin": None,
+        "net_margin": None,
+        "roe": None,
+        "debt_to_equity": None,
+        "fcf_yield": None,
     }
 
 
@@ -264,6 +313,20 @@ def read_fundamentals(yahoo_symbol: str) -> dict[str, Any]:
         earnings = _finite(info.get("earningsGrowth"))
     eps = _finite(info.get("trailingEps"))
     pe = _finite(info.get("trailingPE"))
+    
+    # Métricas de calidad
+    operating_margin = _finite(info.get("operatingMargins"))
+    net_margin = _finite(info.get("profitMargins"))
+    roe = _finite(info.get("returnOnEquity"))
+    debt_to_equity = _finite(info.get("debtToEquity"))
+    
+    # FCF Yield = Free Cash Flow / Market Cap
+    fcf = _finite(info.get("freeCashflow"))
+    market_cap = _finite(info.get("marketCap"))
+    fcf_yield = None
+    if fcf is not None and market_cap is not None and market_cap > 0:
+        fcf_yield = fcf / market_cap
+    
     empty.update(
         {
             "revenue_growth_yoy": revenue,
@@ -273,6 +336,11 @@ def read_fundamentals(yahoo_symbol: str) -> dict[str, Any]:
             "ev_ebitda": _finite(info.get("enterpriseToEbitda")),
             "earnings_non_positive": eps is not None and eps <= 0,
             "sector": gics_code(info.get("sector") if isinstance(info.get("sector"), str) else None),
+            "operating_margin": operating_margin,
+            "net_margin": net_margin,
+            "roe": roe,
+            "debt_to_equity": debt_to_equity,
+            "fcf_yield": fcf_yield,
         }
     )
     return empty
