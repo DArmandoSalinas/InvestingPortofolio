@@ -12,12 +12,6 @@ export default async function StudioLayout({ children }: { children: React.React
     redirect("/login");
   }
 
-  const hasPassword = user.app_metadata?.provider === "email" && user.encrypted_password;
-  
-  if (!hasPassword) {
-    redirect("/bienvenida");
-  }
-
   const { data: profile } = await supabase
     .from("profiles")
     .select("role")
