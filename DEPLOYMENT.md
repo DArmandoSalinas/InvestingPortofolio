@@ -167,6 +167,13 @@ El endpoint `/api/v1/digest` requiere autenticación por token. Para crear un to
    uv run python -m app.refresh_ranking
    ```
 
+5. **Cargar el desempeño histórico de las señales** (idempotente):
+   El resumen compacto por regla está en `apps/api/app/signal_performance.json`.
+   El loader hace upsert por `setup`; se puede correr más de una vez sin duplicar filas.
+   ```bash
+   cd apps/api && uv run python -m app.load_backtest_performance
+   ```
+
 ## 7. Automatización con GitHub Actions (Alternativa)
 
 Si prefieres que las tareas programadas corran en GitHub Actions en lugar de en el servidor:
