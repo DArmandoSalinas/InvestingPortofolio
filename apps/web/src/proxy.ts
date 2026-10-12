@@ -28,7 +28,7 @@ export async function proxy(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const path = request.nextUrl.pathname;
-  const isPublic = path === "/login" || path.startsWith("/auth/");
+  const isPublic = path === "/login" || path === "/olvidar" || path.startsWith("/auth/");
 
   const redirectTo = (pathname: string, error?: string) => {
     const url = request.nextUrl.clone();
@@ -49,23 +49,39 @@ export async function proxy(request: NextRequest) {
   }
 
   if (user) {
-    const { data: profile } = await supabase
+    const withFlag = await supabase
       .from("profiles")
-      .select("role, active")
+      .select("role, active, must_change_password")
       .eq("user_id", user.id)
       .maybeSingle();
+    const profile = withFlag.error
+      ? (
+          await supabase
+            .from("profiles")
+            .select("role, active")
+            .eq("user_id", user.id)
+            .maybeSingle()
+        ).data
+      : withFlag.data;
 
     if (!profile || !profile.active) {
       await supabase.auth.signOut();
       return redirectTo("/login", profile ? "revocado" : "invitacion");
     }
 
+    const mustChange = Boolean(
+      "must_change_password" in profile && profile.must_change_password,
+    );
+    if (mustChange && path !== "/cambiar-contrasena") {
+      return redirectTo("/cambiar-contrasena");
+    }
+
     if (path.startsWith("/admin") && profile.role !== "admin") {
       return redirectTo("/");
     }
 
-    if (path === "/login") {
-      return redirectTo("/");
+    if (path === "/login" || path === "/olvidar") {
+      return redirectTo(mustChange ? "/cambiar-contrasena" : "/");
     }
   }
 

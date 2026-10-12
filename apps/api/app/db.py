@@ -20,6 +20,10 @@ class DatabaseUnavailable(Exception):
     pass
 
 
+class EmailAlreadyRegistered(Exception):
+    pass
+
+
 class SupabaseRest:
     def __init__(self, settings: Settings) -> None:
         self.url = settings.supabase_url.rstrip("/")
@@ -108,14 +112,18 @@ class SupabaseRest:
             params={"email": f"eq.{email}"},
             json=fields,
         )
-        response.raise_for_status()
+        if response.status_code >= 400:
+            raise DatabaseUnavailable(response.text[:500])
 
     def get_profile(self, email: str) -> dict[str, Any] | None:
         response = self._request(
             "GET",
             "/rest/v1/profiles",
             headers=self._service_headers(),
-            params={"email": f"eq.{email}", "select": "display_name,role,active"},
+            params={
+                "email": f"eq.{email}",
+                "select": "user_id,display_name,role,active",
+            },
         )
         response.raise_for_status()
         rows = response.json()
@@ -496,8 +504,6 @@ class SupabaseRest:
         Crea un usuario en Supabase Auth usando Admin API.
         Retorna el user_id.
         """
-        import json
-        
         payload = {
             "email": email,
             "password": password,
@@ -514,10 +520,18 @@ class SupabaseRest:
         )
         
         if response.status_code >= 400:
-            raise DatabaseUnavailable(f"Error creando usuario: {response.text[:500]}")
+            text = response.text[:500]
+            lowered = text.lower()
+            if response.status_code in (400, 422) and (
+                "already" in lowered or "email_exists" in lowered or "already been registered" in lowered
+            ):
+                raise EmailAlreadyRegistered(text)
+            raise DatabaseUnavailable(f"Error creando usuario: {text}")
         
         user = response.json()
-        return user["id"]
+        if isinstance(user, dict) and "id" not in user and isinstance(user.get("user"), dict):
+            user = user["user"]
+        return str(user["id"])
     
     def update_auth_user_password(self, user_id: str, new_password: str) -> None:
         """Actualiza la contraseña de un usuario en Supabase Auth."""
@@ -532,17 +546,28 @@ class SupabaseRest:
         if response.status_code >= 400:
             raise DatabaseUnavailable(f"Error actualizando contraseña: {response.text[:500]}")
     
-    def get_user_by_email(self, email: str) -> dict | None:
-        """Obtiene un usuario de Supabase Auth por email."""
-        # Supabase Admin API no tiene búsqueda directa por email
-        # Usamos la tabla profiles como proxy
-        profile = self.get_profile(email)
-        if not profile:
-            return None
-        
-        # Para obtener el user_id, necesitamos buscarlo en auth.users
-        # Como no tenemos acceso directo, retornamos lo que tenemos
-        return profile
+    def find_auth_user_id(self, email: str) -> str | None:
+        """Busca el id de Auth por correo. La lista es chica: la plataforma es privada."""
+        wanted = email.strip().lower()
+        for page in range(1, 11):
+            response = self._request(
+                "GET",
+                "/auth/v1/admin/users",
+                headers=self._service_headers(),
+                params={"page": str(page), "per_page": "200"},
+            )
+            if response.status_code >= 400:
+                raise DatabaseUnavailable(response.text[:500])
+            payload = response.json()
+            users = payload.get("users") if isinstance(payload, dict) else payload
+            if not isinstance(users, list) or not users:
+                return None
+            for user in users:
+                if str(user.get("email") or "").lower() == wanted and user.get("id"):
+                    return str(user["id"])
+            if len(users) < 200:
+                return None
+        return None
     
     def save_invitation(self, email: str, temp_password: str, invited_by: str) -> None:
         """Guarda una invitación en la tabla de invitations."""
@@ -561,6 +586,7 @@ class SupabaseRest:
                 "invited_by": invited_by,
                 "invited_at": datetime.now(timezone.utc).isoformat(),
                 "expires_at": (datetime.now(timezone.utc) + timedelta(days=7)).isoformat(),
+                "used_at": None,
             },
         )
         

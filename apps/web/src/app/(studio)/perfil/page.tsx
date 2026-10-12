@@ -87,6 +87,7 @@ export default async function ProfilePage({
               min="1"
               step="1"
               required
+              placeholder="Por ejemplo 100000"
               defaultValue={profile?.amount ?? ""}
               className="rounded-2xl border border-line bg-surface px-4 py-3 text-sm tabular-nums normal-case tracking-normal text-ink"
             />
@@ -99,6 +100,7 @@ export default async function ProfilePage({
               min="0"
               step="1"
               required
+              placeholder="Por ejemplo 5000. Puede ser 0."
               defaultValue={profile?.monthly_contribution ?? ""}
               className="rounded-2xl border border-line bg-surface px-4 py-3 text-sm tabular-nums normal-case tracking-normal text-ink"
             />
@@ -112,6 +114,7 @@ export default async function ProfilePage({
               max="40"
               step="1"
               required
+              placeholder="Por ejemplo 10"
               defaultValue={profile?.horizon_years ?? ""}
               className="rounded-2xl border border-line bg-surface px-4 py-3 text-sm tabular-nums normal-case tracking-normal text-ink"
             />
@@ -158,7 +161,11 @@ export default async function ProfilePage({
           ) : null}
         </form>
         <div className="flex flex-col gap-8">
-          <div className="grid gap-3 md:grid-cols-5">
+          <p className="text-sm leading-6 text-muted">
+            Los porcentajes de estas tarjetas son historia del mercado, con fechas reales. No son tu
+            dinero, aunque el formulario todavía esté vacío.
+          </p>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-5">
             {board.sleeves.map((sleeve) => (
               <article key={sleeve.id} className="rounded-[28px] border border-line bg-surface px-4 py-4">
                 <h2 className="text-[11px] uppercase tracking-[0.14em] text-faint">{sleeve.name}</h2>
@@ -182,7 +189,7 @@ export default async function ProfilePage({
                     />
                   ))}
               </div>
-              <div className="grid grid-cols-5 gap-3">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
                 {allocation.sleeves.map((sleeve) => {
                   const label = board.sleeves.find((item) => item.id === sleeve.id)?.name ?? sleeve.id;
                   return (

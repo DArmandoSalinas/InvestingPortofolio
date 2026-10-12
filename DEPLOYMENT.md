@@ -114,10 +114,27 @@ El repositorio incluye configuración automática para Railway (`Procfile` y `ni
 
 ## 4. Configurar el Primer Admin
 
-1. En la API, el email en `ADMIN_EMAIL` será el administrador inicial
-2. Ve a tu sitio web y haz clic en "Iniciar sesión"
-3. Ingresa el email de admin y recibirás un magic link
-4. Una vez dentro, ve a "Acceso" y agrega usuarios adicionales
+La entrada es con correo y contraseña. Si el administrador ya existe en Auth
+(por ejemplo `salinas.diegoarmando03@gmail.com`), genera su contraseña temporal
+en el shell del servicio de Railway, con las variables ya cargadas:
+
+```bash
+cd apps/api && uv run python -m app.bootstrap_password --email salinas.diegoarmando03@gmail.com
+```
+
+El comando imprime la contraseña una vez y, si `SMTP_*` está configurado, también
+la manda por correo. El primer inicio de sesión obliga a cambiarla.
+
+Antes de redesplegar, aplica las migraciones nuevas. Si la columna
+`must_change_password` no existe, invitar desde Acceso falla.
+
+## 4b. Primer acceso (detalle)
+
+1. En la API, el email en `ADMIN_EMAIL` es el administrador de arranque
+2. Corre el comando de arriba y copia la contraseña temporal
+3. Entra en el sitio con ese correo y esa contraseña
+4. La app pide una contraseña nueva antes de dejar usar el resto
+5. Ya dentro, Acceso invita a otras personas: crea la cuenta y manda otra temporal
 
 ## 5. Crear Token para el Digest API
 
