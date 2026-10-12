@@ -14,7 +14,7 @@ analista. Acceso solo por invitación. La plataforma NO ejecuta operaciones.
 
 ## Stack
 - Frontend: Next.js (App Router) + TypeScript + Tailwind + Framer Motion
-- Solo escritorio: diseñado para pantallas de 1280px en adelante
+- Responsive: diseñado para funcionar en celular y escritorio
 - Gráficas: TradingView Lightweight Charts (velas), Recharts (resto)
 - Backend: Python + FastAPI
 - Base de datos y autenticación: Supabase (PostgreSQL + Auth + Row Level Security)
@@ -44,7 +44,7 @@ analista. Acceso solo por invitación. La plataforma NO ejecuta operaciones.
 - Números con tabular-nums
 - Un solo color de acento; verde y rojo suaves solo para subidas y bajadas
 - Bordes de 1px (blanco al 8%), esquinas redondeadas grandes
-- Layouts de varias columnas aprovechando pantallas anchas
+- Layouts adaptativos: múltiples columnas en escritorio, una columna en móvil
 - Animaciones suaves: aparición escalonada, números que cuentan, transiciones
 - Elegancia por lo que se quita: menos elementos, más claridad
 
@@ -198,8 +198,7 @@ las fases siguientes, salvo un cambio explícito de este documento.
   (default 70) el mismo día. Si una es nula, no entra.
 
 ### Interfaz
-- Español (es-MX). Solo escritorio, desde 1280px. Por debajo, un aviso y no
-  hay layout móvil.
+- Español (es-MX). Responsive: funciona en celular (pantallas desde 375px) y escritorio.
 - Acento `#f5f5f7`. Verde y rojo quedan reservados para subidas y bajadas.
   Las puntuaciones no se pintan como compra o venta.
 - La tabla es densa. El bloque de altas en los tres va arriba y es corto.

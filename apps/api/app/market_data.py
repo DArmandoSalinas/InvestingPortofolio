@@ -7,6 +7,17 @@ from app.universe import Listing, gics_code
 PRICE_CHUNK = 40
 FUNDAMENTAL_WORKERS = 6
 
+# Símbolos que ya no cotizan en Yahoo pero pueden aparecer en Wikipedia
+DELISTED_SYMBOLS = {
+    "ELEKTRA.MX",  # Ya no cotiza
+    "ALFAA.MX",    # Ya no cotiza
+}
+
+
+def _is_delisted(symbol: str) -> bool:
+    """Verifica si un símbolo está en la lista de dados de baja."""
+    return symbol in DELISTED_SYMBOLS
+
 
 def _finite(value: Any) -> float | None:
     if value is None or isinstance(value, bool):
@@ -61,9 +72,10 @@ def closes_from_frame(frame: Any, symbol: str, alone: bool = False) -> list[floa
 
 def _download_chunk(symbols: list[str]) -> dict[str, list[float]]:
     import yfinance as yf
+    from app.cache import with_rate_limit_retry
 
-    try:
-        frame = yf.download(
+    def fetch():
+        return yf.download(
             symbols,
             period="2y",
             interval="1d",
@@ -72,13 +84,16 @@ def _download_chunk(symbols: list[str]) -> dict[str, list[float]]:
             threads=False,
             group_by="ticker",
         )
-    except Exception:
-        frame = None
+    
+    frame = with_rate_limit_retry(fetch, max_retries=3, delay=2.0)
+    if frame is None:
+        return {symbol: [] for symbol in symbols}
+    
     found = {symbol: closes_from_frame(frame, symbol) for symbol in symbols}
     missing = [symbol for symbol, closes in found.items() if not closes]
     for symbol in missing:
-        try:
-            single = yf.download(
+        def fetch_single():
+            return yf.download(
                 [symbol],
                 period="2y",
                 interval="1d",
@@ -86,7 +101,11 @@ def _download_chunk(symbols: list[str]) -> dict[str, list[float]]:
                 progress=False,
                 threads=False,
             )
-            found[symbol] = closes_from_frame(single, symbol)
+        
+        try:
+            single = with_rate_limit_retry(fetch_single, max_retries=2, delay=1.0)
+            if single is not None:
+                found[symbol] = closes_from_frame(single, symbol)
         except Exception:
             continue
     return found
@@ -95,9 +114,19 @@ def _download_chunk(symbols: list[str]) -> dict[str, list[float]]:
 def download_closes(symbols: list[str]) -> dict[str, list[float]]:
     closes: dict[str, list[float]] = {}
     unique = list(dict.fromkeys(symbols))
-    for start in range(0, len(unique), PRICE_CHUNK):
-        chunk = unique[start : start + PRICE_CHUNK]
-        print(f"precios {start + 1}-{start + len(chunk)} de {len(unique)}", flush=True)
+    
+    # Filtrar símbolos dados de baja
+    active = [s for s in unique if not _is_delisted(s)]
+    delisted = [s for s in unique if _is_delisted(s)]
+    
+    if delisted:
+        print(f"omitiendo {len(delisted)} símbolos dados de baja: {', '.join(delisted)}", flush=True)
+        for symbol in delisted:
+            closes[symbol] = []
+    
+    for start in range(0, len(active), PRICE_CHUNK):
+        chunk = active[start : start + PRICE_CHUNK]
+        print(f"precios {start + 1}-{start + len(chunk)} de {len(active)}", flush=True)
         closes.update(_download_chunk(chunk))
     return closes
 
@@ -211,14 +240,24 @@ def empty_fundamentals() -> dict[str, Any]:
 
 def read_fundamentals(yahoo_symbol: str) -> dict[str, Any]:
     import yfinance as yf
+    from app.cache import with_rate_limit_retry
 
     empty = empty_fundamentals()
-    try:
+    
+    def fetch():
         ticker = yf.Ticker(yahoo_symbol)
         info = ticker.info or {}
         revenue, earnings = _annual_growth(ticker)
+        return ticker, info, revenue, earnings
+    
+    try:
+        result = with_rate_limit_retry(fetch, max_retries=3, delay=2.0)
+        if result is None:
+            return empty
+        ticker, info, revenue, earnings = result
     except Exception:
         return empty
+    
     if revenue is None:
         revenue = _finite(info.get("revenueGrowth"))
     if earnings is None:
@@ -241,9 +280,24 @@ def read_fundamentals(yahoo_symbol: str) -> dict[str, Any]:
 
 def download_fundamentals(listings: list[Listing]) -> dict[str, dict[str, Any]]:
     facts: dict[str, dict[str, Any]] = {}
-    total = len(listings)
+    
+    # Filtrar símbolos dados de baja
+    active = [item for item in listings if not _is_delisted(item.yahoo_symbol)]
+    delisted_count = len(listings) - len(active)
+    
+    if delisted_count > 0:
+        delisted_symbols = [item.yahoo_symbol for item in listings if _is_delisted(item.yahoo_symbol)]
+        print(f"omitiendo {delisted_count} símbolos dados de baja en fundamentales", flush=True)
+        for item in listings:
+            if _is_delisted(item.yahoo_symbol):
+                facts[item.yahoo_symbol] = empty_fundamentals()
+    
+    total = len(active)
+    if total == 0:
+        return facts
+    
     with ThreadPoolExecutor(max_workers=FUNDAMENTAL_WORKERS) as pool:
-        futures = {pool.submit(read_fundamentals, item.yahoo_symbol): item for item in listings}
+        futures = {pool.submit(read_fundamentals, item.yahoo_symbol): item for item in active}
         done = 0
         for future in as_completed(futures):
             item = futures[future]

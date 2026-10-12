@@ -54,9 +54,13 @@ export default async function RankingPage({
       <FadeIn>
         <div>
           <h1 className="text-5xl font-light tracking-tight">Ranking</h1>
-          <p className="mt-3 text-sm text-muted">
+          <p className="mt-2 text-sm leading-6 text-muted">
+            Encuentra empresas de EE.UU. y México ordenadas por sus puntuaciones de Crecimiento,
+            Valor y Momentum. Cada empresa tiene una puntuación General (promedio de las tres).
+          </p>
+          <p className="mt-3 text-sm text-faint">
             {ranking.example ? "Datos de ejemplo" : "Calculado"} · {asOf}
-            <span className="mx-2 text-faint">·</span>
+            <span className="mx-2">·</span>
             <span className="tabular-nums">{ranking.rows.length} empresas</span>
           </p>
         </div>
