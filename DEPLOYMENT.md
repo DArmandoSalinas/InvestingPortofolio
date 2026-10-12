@@ -33,11 +33,14 @@ Esta guía describe cómo desplegar la plataforma en producción usando Vercel (
 
 ## 2. Desplegar el Backend (FastAPI) en Railway
 
+El repositorio incluye configuración automática para Railway (`Procfile` y `nixpacks.toml`).
+
 ### Opción A: Railway
 
 1. Ve a [Railway](https://railway.app) y crea un nuevo proyecto
 2. Agrega un nuevo servicio desde tu repositorio de GitHub
-3. Configura las variables de entorno en Railway:
+3. Railway detectará automáticamente la configuración (`nixpacks.toml` y `Procfile`)
+4. Configura las variables de entorno en Railway:
    ```
    SUPABASE_URL=https://tu-proyecto.supabase.co
    SUPABASE_SERVICE_ROLE_KEY=tu-service-role-key-secreto
@@ -70,10 +73,7 @@ Esta guía describe cómo desplegar la plataforma en producción usando Vercel (
    SMTP_FROM=notificaciones@tu-dominio.com
    ```
 
-6. Railway Settings:
-   - Root Directory: `apps/api`
-   - Start Command: `uv run uvicorn app.main:app --host 0.0.0.0 --port $PORT`
-   - (Railway detecta Python automáticamente y usa `pyproject.toml`)
+6. Railway desplegará automáticamente usando la configuración en `nixpacks.toml`
 
 7. Anota la URL pública que Railway asigna (ej: `https://tu-app.up.railway.app`)
 
@@ -230,6 +230,11 @@ Si prefieres que las tareas programadas corran en GitHub Actions en lugar de en 
 ### La API no puede escribir en Supabase
 - Verifica que uses `SUPABASE_SERVICE_ROLE_KEY`, no la anon key
 - Revisa las Row Level Security policies en Supabase
+
+### Errores 404 para símbolos mexicanos
+- Algunos símbolos de Wikipedia pueden estar dados de baja en Yahoo Finance
+- La plataforma los omite automáticamente (ej: ELEKTRA.MX, ALFAA.MX)
+- Si aparecen otros símbolos problemáticos, agrégalos a `DELISTED_SYMBOLS` en `apps/api/app/market_data.py`
 
 ## Soporte
 

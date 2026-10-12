@@ -7,6 +7,17 @@ from app.universe import Listing, gics_code
 PRICE_CHUNK = 40
 FUNDAMENTAL_WORKERS = 6
 
+# Símbolos que ya no cotizan en Yahoo pero pueden aparecer en Wikipedia
+DELISTED_SYMBOLS = {
+    "ELEKTRA.MX",  # Ya no cotiza
+    "ALFAA.MX",    # Ya no cotiza
+}
+
+
+def _is_delisted(symbol: str) -> bool:
+    """Verifica si un símbolo está en la lista de dados de baja."""
+    return symbol in DELISTED_SYMBOLS
+
 
 def _finite(value: Any) -> float | None:
     if value is None or isinstance(value, bool):
@@ -103,9 +114,19 @@ def _download_chunk(symbols: list[str]) -> dict[str, list[float]]:
 def download_closes(symbols: list[str]) -> dict[str, list[float]]:
     closes: dict[str, list[float]] = {}
     unique = list(dict.fromkeys(symbols))
-    for start in range(0, len(unique), PRICE_CHUNK):
-        chunk = unique[start : start + PRICE_CHUNK]
-        print(f"precios {start + 1}-{start + len(chunk)} de {len(unique)}", flush=True)
+    
+    # Filtrar símbolos dados de baja
+    active = [s for s in unique if not _is_delisted(s)]
+    delisted = [s for s in unique if _is_delisted(s)]
+    
+    if delisted:
+        print(f"omitiendo {len(delisted)} símbolos dados de baja: {', '.join(delisted)}", flush=True)
+        for symbol in delisted:
+            closes[symbol] = []
+    
+    for start in range(0, len(active), PRICE_CHUNK):
+        chunk = active[start : start + PRICE_CHUNK]
+        print(f"precios {start + 1}-{start + len(chunk)} de {len(active)}", flush=True)
         closes.update(_download_chunk(chunk))
     return closes
 
@@ -259,9 +280,24 @@ def read_fundamentals(yahoo_symbol: str) -> dict[str, Any]:
 
 def download_fundamentals(listings: list[Listing]) -> dict[str, dict[str, Any]]:
     facts: dict[str, dict[str, Any]] = {}
-    total = len(listings)
+    
+    # Filtrar símbolos dados de baja
+    active = [item for item in listings if not _is_delisted(item.yahoo_symbol)]
+    delisted_count = len(listings) - len(active)
+    
+    if delisted_count > 0:
+        delisted_symbols = [item.yahoo_symbol for item in listings if _is_delisted(item.yahoo_symbol)]
+        print(f"omitiendo {delisted_count} símbolos dados de baja en fundamentales", flush=True)
+        for item in listings:
+            if _is_delisted(item.yahoo_symbol):
+                facts[item.yahoo_symbol] = empty_fundamentals()
+    
+    total = len(active)
+    if total == 0:
+        return facts
+    
     with ThreadPoolExecutor(max_workers=FUNDAMENTAL_WORKERS) as pool:
-        futures = {pool.submit(read_fundamentals, item.yahoo_symbol): item for item in listings}
+        futures = {pool.submit(read_fundamentals, item.yahoo_symbol): item for item in active}
         done = 0
         for future in as_completed(futures):
             item = futures[future]
