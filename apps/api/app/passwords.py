@@ -49,7 +49,9 @@ def issue_temporary_password(
         address,
         {"must_change_password": True, "active": True},
     )
-    db.save_invitation(address, temporary, invited_by)
+    # Metadatos de invitación solamente: la contraseña queda en Supabase Auth
+    # (hash) y se muestra una sola vez al admin vía la respuesta de la API.
+    db.save_invitation(address, invited_by)
     try:
         mail = send(address, temporary, site_url)
     except ValueError:

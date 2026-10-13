@@ -41,9 +41,8 @@ class FakeDb:
         self.profiles.setdefault(email, {})
         self.profiles[email].update(fields)
 
-    def save_invitation(self, email: str, temp_password: str, invited_by: str) -> None:
+    def save_invitation(self, email: str, invited_by: str) -> None:
         self.invitations[email] = {
-            "temp_password": temp_password,
             "invited_by": invited_by,
             "used_at": None,
         }
@@ -51,7 +50,6 @@ class FakeDb:
     def mark_invitation_used(self, email: str) -> None:
         if email in self.invitations:
             self.invitations[email]["used_at"] = "now"
-            self.invitations[email]["temp_password"] = ""
 
 
 def _send_ok(email: str, password: str, site: str) -> str:
@@ -97,6 +95,7 @@ def test_invite_creates_the_user_forces_a_change_and_emails_the_temporary_passwo
     assert sent == [("nuevo@estudio.local", result["temp_password"])]
     assert db.auth[str(result["user_id"])]["password"] == result["temp_password"]
     assert db.invitations["nuevo@estudio.local"]["used_at"] is None
+    assert "temp_password" not in db.invitations["nuevo@estudio.local"]
 
 
 def test_invite_of_an_existing_user_rotates_the_password_without_creating_another():

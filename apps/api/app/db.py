@@ -598,10 +598,10 @@ class SupabaseRest:
                 return None
         return None
     
-    def save_invitation(self, email: str, temp_password: str, invited_by: str) -> None:
-        """Guarda una invitación en la tabla de invitations."""
-        from datetime import datetime, timezone, timedelta
-        
+    def save_invitation(self, email: str, invited_by: str) -> None:
+        """Registra la invitación sin guardar la contraseña (solo metadatos)."""
+        from datetime import datetime, timedelta, timezone
+
         response = self._request(
             "POST",
             "/rest/v1/invitations",
@@ -611,21 +611,20 @@ class SupabaseRest:
             params={"on_conflict": "email"},
             json={
                 "email": email,
-                "temp_password": temp_password,
                 "invited_by": invited_by,
                 "invited_at": datetime.now(timezone.utc).isoformat(),
                 "expires_at": (datetime.now(timezone.utc) + timedelta(days=7)).isoformat(),
                 "used_at": None,
             },
         )
-        
+
         if response.status_code >= 400:
             raise DatabaseUnavailable(response.text[:2000])
-    
+
     def mark_invitation_used(self, email: str) -> None:
         """Marca una invitación como usada."""
         from datetime import datetime, timezone
-        
+
         response = self._request(
             "PATCH",
             "/rest/v1/invitations",
@@ -633,18 +632,18 @@ class SupabaseRest:
             params={"email": f"eq.{email}"},
             json={"used_at": datetime.now(timezone.utc).isoformat()},
         )
-        
+
         if response.status_code >= 400:
             raise DatabaseUnavailable(response.text[:2000])
-    
+
     def get_invitation(self, email: str) -> dict | None:
-        """Obtiene una invitación pendiente."""
+        """Obtiene una invitación pendiente (sin secretos)."""
         response = self._request(
             "GET",
             "/rest/v1/invitations",
             headers=self._service_headers(),
             params={
-                "select": "*",
+                "select": "email,invited_by,invited_at,expires_at,used_at",
                 "email": f"eq.{email}",
                 "used_at": "is.null",
                 "limit": "1",

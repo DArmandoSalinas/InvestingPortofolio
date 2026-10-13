@@ -5,6 +5,7 @@ import { invite, resendLink, updateAccess } from "./actions";
 import { apiGet } from "@/lib/api";
 import { createClient } from "@/lib/supabase/server";
 import { CopyPasswordButton } from "./copy-password";
+import { FlashOnce } from "./flash-once";
 
 type AccessList = {
   entries: {
@@ -54,12 +55,14 @@ export default async function AccessPage({
       </div>
       <h1 className="mt-6 text-4xl font-light tracking-tight sm:text-5xl">Acceso</h1>
       <p className="mt-4 max-w-lg text-sm leading-6 text-muted">
-        Al agregar un correo se crea la cuenta con contraseña temporal. Pásale la contraseña. Al entrar
-        con su correo le pediremos crear una nueva. Solo esta lista puede entrar.
+        Al agregar un correo se crea la cuenta con contraseña temporal. Aquí aparece una sola vez
+        (cópiala y pásasela). No se guarda en la base: solo el hash en Supabase Auth. Al entrar le
+        pediremos crear una nueva. Solo esta lista puede entrar.
       </p>
       {params.error ? <p className="mt-6 text-sm text-ink">{params.error}</p> : null}
       {flash?.password ? (
         <div className="mt-6 rounded-2xl border border-line bg-surface p-4">
+          <FlashOnce />
           <p className="text-xs uppercase tracking-[0.14em] text-faint">Contraseña temporal</p>
           <div className="mt-2 flex flex-wrap items-center gap-3">
             <p className="text-sm text-ink">
@@ -69,7 +72,8 @@ export default async function AccessPage({
             <CopyPasswordButton password={flash.password} />
           </div>
           <p className="mt-2 text-xs text-faint">
-            Pásale esta contraseña. Al entrar con su correo le pediremos crear una nueva.
+            Cópiala ahora: al recargar ya no aparece. Al entrar con su correo le pediremos crear una
+            nueva.
           </p>
         </div>
       ) : null}
