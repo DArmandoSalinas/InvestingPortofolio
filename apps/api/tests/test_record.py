@@ -18,6 +18,10 @@ def test_the_scoreboard_ignores_open_signals_and_missing_returns():
     assert board["spy_count"] == 2
     assert board["spy_return"] == (0.01 + 0.03) / 2
     assert board["btc_count"] == 2
+    # 0.04 > 0.01 (gana); 0.0 < 0.03 (pierde); stop sin SPY no cuenta
+    assert board["beat_spy_compared"] == 2
+    assert board["beat_spy_count"] == 1
+    assert board["beat_spy_rate"] == 0.5
 
 
 def test_an_empty_book_does_not_invent_a_hit_rate():
@@ -25,6 +29,23 @@ def test_an_empty_book_does_not_invent_a_hit_rate():
     assert board["closed"] == 0
     assert board["hit_rate"] is None
     assert board["net_return"] is None
+    assert board["beat_spy_rate"] is None
+    assert board["beat_spy_compared"] == 0
+
+
+def test_beat_spy_rate_is_honest_when_signals_mostly_lose():
+    rows = [
+        {"status": "target", "net_return": 0.01, "spy_return": 0.02, "btc_return": None},
+        {"status": "stop", "net_return": -0.03, "spy_return": 0.01, "btc_return": None},
+        {"status": "expired", "net_return": 0.02, "spy_return": 0.01, "btc_return": None},
+        {"status": "stop", "net_return": -0.01, "spy_return": 0.0, "btc_return": None},
+        {"status": "expired", "net_return": 0.0, "spy_return": 0.01, "btc_return": None},
+    ]
+    board = scoreboard(rows)
+    # Solo 1 de 5 le gana al SPY → 20%, no se redondea hacia un relato positivo
+    assert board["beat_spy_count"] == 1
+    assert board["beat_spy_compared"] == 5
+    assert board["beat_spy_rate"] == 0.2
 
 
 def test_the_quarterly_report_uses_the_same_quarter_a_year_earlier():

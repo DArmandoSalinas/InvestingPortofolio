@@ -205,6 +205,9 @@ export type SignalRecord = {
   net_count: number;
   spy_count: number;
   btc_count: number;
+  beat_spy_rate: number | null;
+  beat_spy_count: number;
+  beat_spy_compared: number;
 };
 
 export type WatchItem = {

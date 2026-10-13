@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { CandleChart } from "@/components/candle-chart";
-import { ScoreChart } from "@/components/score-chart";
+import { EmptyState } from "@/components/empty-state";
 import { FadeIn } from "@/components/fade-in";
+import { PageHeader } from "@/components/page-header";
+import { ScoreChart } from "@/components/score-chart";
 import { apiGetResult } from "@/lib/api";
 import { formatAsOf, marketLabel, sectorLabel } from "@/lib/labels";
 import type { CompanyDetail } from "@/lib/types";
@@ -29,7 +31,7 @@ function Score({ label, value }: { label: string; value: number | null }) {
   return (
     <div>
       <p className="text-[11px] uppercase tracking-[0.14em] text-faint">{label}</p>
-      <p className="mt-2 text-4xl font-light tabular-nums tracking-tight">
+      <p className="mt-2 text-3xl font-light tabular-nums tracking-tight sm:text-4xl">
         {value === null ? <span className="text-xl text-faint">—</span> : value}
       </p>
     </div>
@@ -50,11 +52,10 @@ export default async function CompanyPage({
   if (!result.ok || !result.data) {
     return (
       <div className="flex flex-col gap-6">
-        <Link href="/" className="text-sm text-muted">
+        <Link href="/" className="text-sm text-muted hover:text-accent">
           Ranking
         </Link>
-        <h1 className="text-5xl font-light tracking-tight">No está en el universo</h1>
-        <p className="text-sm text-muted">{result.detail}</p>
+        <EmptyState title="No está en el universo" body={result.detail || "No hay ficha para este símbolo."} />
       </div>
     );
   }
@@ -63,50 +64,33 @@ export default async function CompanyPage({
   const asOf = company.as_of ? formatAsOf(company.as_of) : "sin fecha";
 
   return (
-    <div className="flex min-w-0 flex-col gap-10">
-      <FadeIn>
-        <Link href="/" className="text-sm text-muted">
+    <div className="flex flex-col gap-8">
+      <div>
+        <Link href="/" className="text-sm text-muted hover:text-accent">
           Ranking
         </Link>
-        <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between sm:gap-8">
-          <div>
-            <h1 className="text-4xl font-light tracking-tight sm:text-5xl">{company.symbol}</h1>
-            <p className="mt-3 text-sm text-muted">
-              {company.name}
-              <span className="mx-2 text-faint">·</span>
-              {marketLabel(company.market)}
-              <span className="mx-2 text-faint">·</span>
-              {sectorLabel(company.sector)}
-              <span className="mx-2 text-faint">·</span>
-              {company.currency}
-            </p>
-          </div>
-          <p className="text-sm text-muted">
-            {company.example ? "Datos de ejemplo" : "Calculado"}
-            <span className="mx-2 text-faint">·</span>
-            {asOf}
-          </p>
+        <div className="mt-4">
+          <PageHeader
+            title={company.symbol}
+            description={`${company.name} · ${marketLabel(company.market)} · ${sectorLabel(company.sector)} · ${company.currency}`}
+            meta={
+              <span>
+                {company.example ? "Datos de ejemplo" : "Calculado"}
+                <span className="mx-2 text-faint">·</span>
+                {asOf}
+              </span>
+            }
+          />
         </div>
-      </FadeIn>
-      <section className="grid grid-cols-2 gap-6 rounded-[28px] border border-line bg-surface px-5 py-6 sm:gap-8 sm:px-8 sm:py-7 md:grid-cols-4">
-        <Score label="Crecimiento" value={company.growth} />
-        <Score label="Valor" value={company.value} />
-        <Score label="Momentum" value={company.momentum} />
-        <Score label="General" value={company.composite} />
-      </section>
-      {company.quality !== null && company.quality !== undefined && (
-        <section className="rounded-[28px] border border-line bg-surface px-8 py-7">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-baseline sm:gap-8">
-            <div>
-              <p className="text-[11px] uppercase tracking-[0.14em] text-faint">Calidad</p>
-              <p className="mt-2 text-4xl font-light tabular-nums tracking-tight">
-                {company.quality}
-              </p>
-            </div>
-            <p className="text-sm text-muted max-w-2xl">{company.quality_note}</p>
-          </div>
+      </div>
+      <FadeIn>
+        <section className="grid grid-cols-2 gap-6 rounded-[24px] border border-line bg-surface px-5 py-7 sm:grid-cols-4 sm:gap-8 sm:px-8">
+          <Score label="Crecimiento" value={company.growth} />
+          <Score label="Valor" value={company.value} />
+          <Score label="Momentum" value={company.momentum} />
+          <Score label="General" value={company.composite} />
         </section>
-      )}
+      </FadeIn>
       <ScoreChart
         title="Puntuaciones"
         rows={[
@@ -116,12 +100,14 @@ export default async function CompanyPage({
           { key: "composite", label: "General", value: company.composite },
         ]}
       />
-      <section className="overflow-hidden rounded-[28px] border border-line bg-surface">
-        <h2 className="px-6 pt-6 text-[11px] uppercase tracking-[0.14em] text-faint">Precio</h2>
+      <section className="overflow-hidden rounded-[24px] border border-line bg-surface">
+        <h2 className="px-5 pt-6 text-[11px] uppercase tracking-[0.14em] text-faint sm:px-6">
+          Precio
+        </h2>
         <CandleChart bars={company.candles} />
       </section>
       {company.reading_summary || company.reading_sentiment ? (
-        <section className="max-w-3xl">
+        <section className="max-w-3xl rounded-[24px] border border-line bg-surface px-5 py-6 sm:px-7">
           <h2 className="text-[11px] uppercase tracking-[0.14em] text-faint">Lectura</h2>
           {company.reading_summary ? (
             <p className="mt-3 text-lg font-light leading-8">{company.reading_summary}</p>
@@ -134,14 +120,14 @@ export default async function CompanyPage({
           ) : null}
         </section>
       ) : null}
-      <section className="max-w-3xl">
+      <section className="max-w-3xl rounded-[24px] border border-line bg-surface px-5 py-6 sm:px-7">
         <h2 className="text-[11px] uppercase tracking-[0.14em] text-faint">Reporte</h2>
         {company.report_period ? (
           <>
             <p className="mt-3 text-sm text-muted">
               Trimestre al {formatAsOf(company.report_period)}
             </p>
-            <div className="mt-6 grid grid-cols-2 gap-8">
+            <div className="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-2 sm:gap-8">
               <div>
                 <p className="text-[11px] uppercase tracking-[0.14em] text-faint">Ingresos</p>
                 <p className="mt-2 text-3xl font-light tabular-nums">
@@ -170,16 +156,16 @@ export default async function CompanyPage({
           </p>
         )}
       </section>
-      <section className="grid grid-cols-1 gap-8 md:grid-cols-3 md:gap-10">
-        <div>
+      <section className="grid grid-cols-1 gap-6 sm:grid-cols-3 sm:gap-8">
+        <div className="rounded-[24px] border border-line bg-surface px-5 py-5">
           <h2 className="text-[11px] uppercase tracking-[0.14em] text-faint">Crecimiento</h2>
           <p className="mt-3 text-sm leading-6 text-muted">{company.growth_note}</p>
         </div>
-        <div>
+        <div className="rounded-[24px] border border-line bg-surface px-5 py-5">
           <h2 className="text-[11px] uppercase tracking-[0.14em] text-faint">Valor</h2>
           <p className="mt-3 text-sm leading-6 text-muted">{company.value_note}</p>
         </div>
-        <div>
+        <div className="rounded-[24px] border border-line bg-surface px-5 py-5">
           <h2 className="text-[11px] uppercase tracking-[0.14em] text-faint">Momentum</h2>
           <p className="mt-3 text-sm leading-6 text-muted">{company.momentum_note}</p>
         </div>
