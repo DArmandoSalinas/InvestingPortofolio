@@ -142,19 +142,29 @@ def summarize(rows: list[dict]) -> str:
 
 
 def refresh_and_store() -> str:
+    as_of = datetime.now(MONTERREY).date().isoformat()
     listings = load_universe()
-    print(f"universo {len(listings)}", flush=True)
-    closes = download_closes([item.yahoo_symbol for item in listings])
+    print(f"universo {len(listings)} (reanudable {as_of})", flush=True)
+    closes = download_closes([item.yahoo_symbol for item in listings], as_of=as_of)
     priced = sum(1 for item in listings if closes.get(item.yahoo_symbol))
     print(f"con precio {priced} de {len(listings)}", flush=True)
-    fundamentals = download_fundamentals(listings)
+    fundamentals = download_fundamentals(listings, as_of=as_of)
+    quality = sum(
+        1
+        for item in listings
+        if any(
+            (fundamentals.get(item.yahoo_symbol) or {}).get(field) is not None
+            for field in ("pe", "ps", "ev_ebitda", "revenue_growth_yoy", "sector", "quality")
+        )
+    )
+    print(f"con fundamentales útiles {quality} de {len(listings)}", flush=True)
     rows = observe(listings, closes, fundamentals)
-    as_of = datetime.now(MONTERREY).date().isoformat()
     summary = summarize(rows)
     print(f"{as_of}: {summary}", flush=True)
     from app.config import get_settings
     from app.db import SupabaseRest
 
+    # Solo necesita Supabase; ADMIN_EMAIL no es obligatorio para el ranking.
     db = SupabaseRest(get_settings())
     try:
         db.upsert_companies(company_payload(rows))
@@ -177,12 +187,12 @@ def main() -> None:
     if not args.limit:
         refresh_and_store()
         return
+    as_of = datetime.now(MONTERREY).date().isoformat()
     listings = load_universe()[: args.limit]
     print(f"universo de prueba {len(listings)}", flush=True)
-    closes = download_closes([item.yahoo_symbol for item in listings])
-    fundamentals = download_fundamentals(listings)
+    closes = download_closes([item.yahoo_symbol for item in listings], as_of=as_of)
+    fundamentals = download_fundamentals(listings, as_of=as_of)
     rows = observe(listings, closes, fundamentals)
-    as_of = datetime.now(MONTERREY).date().isoformat()
     print(f"{as_of}: {summarize(rows)}", flush=True)
     print("corrida corta: no se escribió la base", flush=True)
 
