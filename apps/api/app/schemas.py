@@ -113,6 +113,9 @@ class SignalRecord(BaseModel):
     net_count: int
     spy_count: int
     btc_count: int
+    beat_spy_rate: float | None = None
+    beat_spy_count: int = 0
+    beat_spy_compared: int = 0
 
 
 class WatchItem(BaseModel):

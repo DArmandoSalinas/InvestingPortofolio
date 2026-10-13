@@ -1,8 +1,10 @@
+import { EmptyState } from "@/components/empty-state";
 import { FadeIn } from "@/components/fade-in";
-import { Tooltip } from "@/components/tooltip";
+import { PageHeader } from "@/components/page-header";
 import { apiGet } from "@/lib/api";
 import { formatAsOf } from "@/lib/labels";
-import type { SignalBoard, SignalRow, SignalPerformance } from "@/lib/types";
+import { setupPlain, statusPlain } from "@/lib/signal-copy";
+import type { SignalBoard, SignalRow } from "@/lib/types";
 
 const SETUP: Record<SignalRow["setup"], string> = {
   impulso: "Impulso",
@@ -31,200 +33,130 @@ function percent(value: number, digits = 1, signed = false) {
   }).format(value);
 }
 
+function ReturnValue({ value }: { value: number | null }) {
+  if (value === null) {
+    return <span className="text-faint">—</span>;
+  }
+  const tone = value > 0 ? "text-up" : value < 0 ? "text-down" : "";
+  return <span className={`tabular-nums ${tone}`}>{percent(value, 1, true)}</span>;
+}
+
 function SignalCard({ signal }: { signal: SignalRow }) {
-  const tone =
-    signal.net_return === null
-      ? ""
-      : signal.net_return > 0
-        ? "text-[#3d9a6a]"
-        : signal.net_return < 0
-          ? "text-[#c45c5c]"
-          : "";
+  const beatSpy =
+    signal.status !== "open" &&
+    signal.net_return !== null &&
+    signal.spy_return !== null
+      ? signal.net_return > signal.spy_return
+      : null;
 
   return (
-    <div className="rounded-2xl border border-line bg-surface p-5">
-      <div className="flex items-start justify-between gap-4">
+    <article className="rounded-[24px] border border-line bg-surface px-5 py-5 sm:px-6">
+      <div className="flex flex-wrap items-baseline justify-between gap-3">
         <div>
-          <div className="flex items-baseline gap-3">
-            <span className="text-lg font-medium tracking-wide">{signal.symbol}</span>
-            <span className="text-sm text-muted">{signal.name}</span>
-          </div>
-          <p className="mt-1 text-xs text-faint">
-            {signal.asset_class === "crypto" ? "Crypto" : "Acción"}
-            <span className="mx-1.5">·</span>
-            {SETUP[signal.setup]}
-            <span className="mx-1.5">·</span>
-            {formatAsOf(signal.as_of)}
+          <h2 className="text-xl font-medium tracking-wide">{signal.symbol}</h2>
+          <p className="mt-1 text-sm text-muted">{signal.name}</p>
+        </div>
+        <div className="text-right text-sm">
+          <p className="text-muted">{STATUS[signal.status]}</p>
+          <p className="mt-1">
+            <ReturnValue value={signal.net_return} />
           </p>
         </div>
-        <div className="flex flex-col items-end gap-1">
-          <span className="text-xs text-muted">{STATUS[signal.status]}</span>
-          {signal.net_return !== null && (
-            <span className={`text-lg font-medium tabular-nums ${tone}`}>
-              {percent(signal.net_return, 1, true)}
-            </span>
-          )}
-        </div>
       </div>
-
-      <div className="mt-4 grid grid-cols-2 gap-4 text-xs sm:grid-cols-4">
+      <p className="mt-4 text-sm leading-6 text-muted">{setupPlain(signal.setup)}</p>
+      <p className="mt-2 text-sm leading-6 text-faint">{statusPlain(signal.status)}</p>
+      <dl className="mt-5 grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
         <div>
-          <div className="text-faint">
-            <Tooltip term="Entrada">Entrada</Tooltip>
-          </div>
-          <div className="mt-1 font-medium tabular-nums">{money(signal.entry)}</div>
-        </div>
-        <div>
-          <div className="text-faint">
-            <Tooltip term="Stop">Stop</Tooltip>
-          </div>
-          <div className="mt-1 font-medium tabular-nums">{money(signal.stop)}</div>
+          <dt className="text-[11px] uppercase tracking-[0.14em] text-faint">Entrada</dt>
+          <dd className="mt-1 tabular-nums">{money(signal.entry)}</dd>
         </div>
         <div>
-          <div className="text-faint">
-            <Tooltip term="Objetivo">Objetivo</Tooltip>
-          </div>
-          <div className="mt-1 font-medium tabular-nums">{money(signal.target)}</div>
+          <dt className="text-[11px] uppercase tracking-[0.14em] text-faint">Stop</dt>
+          <dd className="mt-1 tabular-nums">{money(signal.stop)}</dd>
         </div>
         <div>
-          <div className="text-faint">
-            <Tooltip term="Confianza">Confianza</Tooltip>
-          </div>
-          <div className="mt-1 font-medium tabular-nums">{signal.confidence}</div>
+          <dt className="text-[11px] uppercase tracking-[0.14em] text-faint">Objetivo</dt>
+          <dd className="mt-1 tabular-nums">{money(signal.target)}</dd>
         </div>
-      </div>
-
-      <details className="mt-4 group">
-        <summary className="cursor-pointer text-xs text-muted hover:text-ink list-none flex items-center gap-2">
-          <span className="inline-block transition-transform group-open:rotate-90">→</span>
-          Razones y contexto
-        </summary>
-        <div className="mt-3 space-y-2 text-xs leading-5">
-          <p className="text-faint">{signal.reasons.join(" ")}</p>
-          {signal.context_note && <p className="text-muted">{signal.context_note}</p>}
+        <div>
+          <dt className="text-[11px] uppercase tracking-[0.14em] text-faint">Confianza</dt>
+          <dd className="mt-1 tabular-nums">{signal.confidence}</dd>
         </div>
-      </details>
-
-      {signal.status !== "open" && (signal.spy_return !== null || signal.btc_return !== null) ? (
-        <div className="mt-3 pt-3 border-t border-line text-xs text-faint">
-          Comparación:{" "}
-          {signal.spy_return !== null && `S&P 500 ${percent(signal.spy_return)}`}
-          {signal.spy_return !== null && signal.btc_return !== null && " · "}
-          {signal.btc_return !== null && `BTC ${percent(signal.btc_return)}`}
-        </div>
+      </dl>
+      <p className="mt-4 text-xs leading-5 text-faint">
+        {SETUP[signal.setup]}
+        <span className="mx-1.5">·</span>
+        {signal.asset_class === "crypto" ? "Crypto" : "Acción"}
+        <span className="mx-1.5">·</span>
+        {formatAsOf(signal.as_of)}
+      </p>
+      <ul className="mt-3 list-disc space-y-1 pl-4 text-xs leading-5 text-muted">
+        {signal.reasons.map((reason) => (
+          <li key={reason}>{reason}</li>
+        ))}
+      </ul>
+      {signal.risks.length > 0 ? (
+        <ul className="mt-3 list-disc space-y-1 pl-4 text-xs leading-5 text-faint">
+          {signal.risks.map((risk) => (
+            <li key={risk}>{risk}</li>
+          ))}
+        </ul>
       ) : null}
-    </div>
+      {signal.context_note ? (
+        <p className="mt-3 text-xs leading-5 text-muted">{signal.context_note}</p>
+      ) : null}
+      {signal.status !== "open" && (signal.spy_return !== null || signal.btc_return !== null) ? (
+        <p className="mt-4 text-xs text-faint">
+          En el mismo tramo:{" "}
+          {signal.spy_return !== null ? `S&P 500 ${percent(signal.spy_return)}` : ""}
+          {signal.spy_return !== null && signal.btc_return !== null ? " · " : ""}
+          {signal.btc_return !== null ? `BTC ${percent(signal.btc_return)}` : ""}
+          {beatSpy !== null ? (
+            <span className="ml-2 text-muted">
+              {beatSpy ? "Le ganó al S&P en esta señal." : "No le ganó al S&P en esta señal."}
+            </span>
+          ) : null}
+        </p>
+      ) : null}
+    </article>
   );
 }
 
 export default async function SignalsPage() {
-  const [board, performance] = await Promise.all([
-    apiGet<SignalBoard>("/signals"),
-    apiGet<SignalPerformance>("/signals/performance"),
-  ]);
-  const open = board.signals.filter((signal) => signal.status === "open");
-  const closed = board.signals.filter((signal) => signal.status !== "open");
+  const board = await apiGet<SignalBoard>("/signals");
+  const open = board.signals.filter((signal) => signal.status === "open").length;
 
   return (
-    <div className="flex min-w-0 flex-col gap-8">
-      <FadeIn>
-        <div>
-          <h1 className="text-4xl font-light tracking-tight sm:text-5xl">Señales</h1>
-          <p className="mt-2 text-sm leading-6 text-muted">
-            Señales de compra generadas por reglas de precio, con stop-loss y objetivo. Cada señal
-            dura hasta <Tooltip term="Sesiones">{board.horizon_sessions} sesiones</Tooltip> o hasta
-            que toque el stop o el objetivo.
-          </p>
-          <p className="mt-3 text-sm text-faint">
-            <span className="tabular-nums">{open.length} abiertas</span>
-            {closed.length > 0 && (
-              <>
-                <span className="mx-2">·</span>
-                <span className="tabular-nums">{closed.length} cerradas</span>
-              </>
-            )}
-          </p>
-        </div>
-      </FadeIn>
-
-      {open.length > 0 && (
-        <section>
-          <h2 className="mb-4 text-xs uppercase tracking-[0.16em] text-muted">Abiertas</h2>
-          <div className="grid gap-4">
-            {open.map((signal) => (
+    <div className="flex flex-col gap-8">
+      <PageHeader
+        title="Señales"
+        description="Reglas de precio en lenguaje claro. Cada señal explica por qué entró, qué puede salir mal y cómo cerró de verdad — sin maquillar el historial."
+        meta={
+          <span>
+            {board.horizon_sessions} sesiones
+            <span className="mx-2 text-faint">·</span>
+            <span className="tabular-nums">{open} abiertas</span>
+          </span>
+        }
+      />
+      {board.signals.length === 0 ? (
+        <EmptyState
+          title="Ninguna regla se cumplió"
+          body="No se inventa una señal. Cuando el precio cumpla impulso o retroceso, aparece aquí con entrada, stop y objetivo."
+        />
+      ) : (
+        <FadeIn>
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            {board.signals.map((signal) => (
               <SignalCard key={signal.id} signal={signal} />
             ))}
           </div>
-        </section>
+        </FadeIn>
       )}
-
-      {closed.length > 0 && (
-        <section>
-          <h2 className="mb-4 text-xs uppercase tracking-[0.16em] text-muted">Cerradas</h2>
-          <div className="grid gap-4">
-            {closed.map((signal) => (
-              <SignalCard key={signal.id} signal={signal} />
-            ))}
-          </div>
-        </section>
-      )}
-
-      {board.signals.length === 0 && (
-        <div className="rounded-2xl border border-line bg-surface p-10 text-center text-sm text-muted">
-          Ninguna regla se cumplió. No se inventa una señal.
-        </div>
-      )}
-
-      {(performance.impulso || performance.retroceso) && (
-        <section className="rounded-2xl border border-line bg-surface p-6">
-          <h2 className="text-xs uppercase tracking-[0.16em] text-muted mb-4">
-            Desempeño histórico (últimos 5 años, out-of-sample)
-          </h2>
-          <div className="grid gap-6">
-            {performance.impulso && (
-              <div>
-                <h3 className="text-sm font-medium mb-2">Señales de Impulso</h3>
-                <p className="text-sm text-muted leading-relaxed">
-                  En 5 años, esta regla alcanzó el objetivo en{" "}
-                  {performance.impulso.targets} de {performance.impulso.total_signals} casos (
-                  {performance.impulso.hit_rate
-                    ? `${(performance.impulso.hit_rate * 100).toFixed(1)}%`
-                    : "sin cifra"}
-                  ). En promedio dio{" "}
-                  {performance.impulso.avg_net_return !== null
-                    ? `${(performance.impulso.avg_net_return * 100).toFixed(2)}%`
-                    : "sin cifra"}{" "}
-                  en {board.horizon_sessions} sesiones. En este período, esta regla no superó
-                  consistentemente al S&P 500.
-                </p>
-              </div>
-            )}
-            {performance.retroceso && (
-              <div>
-                <h3 className="text-sm font-medium mb-2">Señales de Retroceso</h3>
-                <p className="text-sm text-muted leading-relaxed">
-                  En 5 años, esta regla alcanzó el objetivo en{" "}
-                  {performance.retroceso.targets} de {performance.retroceso.total_signals} casos (
-                  {performance.retroceso.hit_rate
-                    ? `${(performance.retroceso.hit_rate * 100).toFixed(1)}%`
-                    : "sin cifra"}
-                  ). En promedio dio{" "}
-                  {performance.retroceso.avg_net_return !== null
-                    ? `${(performance.retroceso.avg_net_return * 100).toFixed(2)}%`
-                    : "sin cifra"}{" "}
-                  en {board.horizon_sessions} sesiones. En este período, esta regla no superó
-                  consistentemente al S&P 500.
-                </p>
-              </div>
-            )}
-          </div>
-        </section>
-      )}
-
       <p className="text-xs leading-5 text-faint">
         La comisión de ida y vuelta es {percent(board.stock_commission, 2)} en acciones y{" "}
         {percent(board.crypto_commission, 2)} en crypto. Si el stop y el objetivo caen el mismo día,
-        cuenta el stop. El <Tooltip term="Neto">resultado neto</Tooltip> ya descuenta comisiones.
+        cuenta el stop. El verde y el rojo solo marcan el resultado ya cerrado.
       </p>
     </div>
   );

@@ -190,6 +190,16 @@ def scoreboard(rows: list[dict[str, Any]]) -> dict[str, Any]:
     nets = numbers("net_return")
     spies = numbers("spy_return")
     btcs = numbers("btc_return")
+    beat_spy = 0
+    beat_spy_compared = 0
+    for row in closed:
+        net = _number(row.get("net_return"))
+        spy = _number(row.get("spy_return"))
+        if net is None or spy is None:
+            continue
+        beat_spy_compared += 1
+        if net > spy:
+            beat_spy += 1
     return {
         "open": sum(1 for row in rows if row.get("status") == "open"),
         "closed": len(closed),
@@ -203,6 +213,10 @@ def scoreboard(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "net_count": len(nets),
         "spy_count": len(spies),
         "btc_count": len(btcs),
+        # Cara a cara: señales con neto > buy&hold SPY en el mismo tramo.
+        "beat_spy_rate": None if not beat_spy_compared else beat_spy / beat_spy_compared,
+        "beat_spy_count": beat_spy,
+        "beat_spy_compared": beat_spy_compared,
     }
 
 
