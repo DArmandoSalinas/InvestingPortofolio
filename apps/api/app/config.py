@@ -16,7 +16,8 @@ class Settings(BaseSettings):
     supabase_url: str
     supabase_service_role_key: str
     supabase_anon_key: str
-    admin_email: str
+    # Opcional para refresh_ranking; recomendado en la API en producción.
+    admin_email: str | None = None
     rank_highlight_min: int = 70
     cors_origins: str = "http://localhost:3000"
     brief_email_enabled: bool = False
@@ -26,10 +27,14 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    @field_validator("admin_email")
+    @field_validator("admin_email", mode="before")
     @classmethod
-    def lowercase_admin(cls, value: str) -> str:
-        email = value.strip().lower()
+    def lowercase_admin(cls, value: object) -> str | None:
+        if value is None:
+            return None
+        email = str(value).strip().lower()
+        if not email:
+            return None
         if "@" not in email:
             raise ValueError("ADMIN_EMAIL tiene que ser un correo")
         return email

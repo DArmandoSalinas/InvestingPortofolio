@@ -1,11 +1,16 @@
 import math
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 
+from app import ranking_cache
+from app.retry import call_with_backoff, looks_like_rate_limit
 from app.universe import Listing, gics_code
 
 PRICE_CHUNK = 40
-FUNDAMENTAL_WORKERS = 6
+FUNDAMENTAL_WORKERS = 4
+CHUNK_PAUSE_SECONDS = 1.0
+FUNDAMENTAL_PAUSE_SECONDS = 0.35
 
 # Símbolos que ya no cotizan en Yahoo pero pueden aparecer en Wikipedia
 DELISTED_SYMBOLS = {
@@ -111,23 +116,47 @@ def _download_chunk(symbols: list[str]) -> dict[str, list[float]]:
     return found
 
 
-def download_closes(symbols: list[str]) -> dict[str, list[float]]:
+def download_closes(symbols: list[str], *, as_of: str | None = None) -> dict[str, list[float]]:
     closes: dict[str, list[float]] = {}
     unique = list(dict.fromkeys(symbols))
-    
+
     # Filtrar símbolos dados de baja
     active = [s for s in unique if not _is_delisted(s)]
     delisted = [s for s in unique if _is_delisted(s)]
-    
+
     if delisted:
         print(f"omitiendo {len(delisted)} símbolos dados de baja: {', '.join(delisted)}", flush=True)
         for symbol in delisted:
             closes[symbol] = []
-    
-    for start in range(0, len(active), PRICE_CHUNK):
-        chunk = active[start : start + PRICE_CHUNK]
-        print(f"precios {start + 1}-{start + len(chunk)} de {len(active)}", flush=True)
-        closes.update(_download_chunk(chunk))
+
+    pending: list[str] = []
+    if as_of:
+        for symbol in active:
+            cached = ranking_cache.load_closes(as_of, symbol)
+            if cached:
+                closes[symbol] = cached
+            else:
+                pending.append(symbol)
+        if closes:
+            print(f"precios en caché {len(closes) - len(delisted)} de {len(active)}", flush=True)
+    else:
+        pending = active
+
+    for start in range(0, len(pending), PRICE_CHUNK):
+        chunk = pending[start : start + PRICE_CHUNK]
+        print(
+            f"precios {start + 1}-{start + len(chunk)} de {len(pending)} pendientes",
+            flush=True,
+        )
+        batch = _download_chunk(chunk)
+        closes.update(batch)
+        if as_of:
+            for symbol, values in batch.items():
+                if values:
+                    ranking_cache.save_closes(as_of, symbol, values)
+            ranking_cache.mark_closes_done(as_of, list(batch))
+        if start + PRICE_CHUNK < len(pending):
+            time.sleep(CHUNK_PAUSE_SECONDS)
     return closes
 
 
@@ -345,36 +374,74 @@ def read_fundamentals(yahoo_symbol: str) -> dict[str, Any]:
     return empty
 
 
-def download_fundamentals(listings: list[Listing]) -> dict[str, dict[str, Any]]:
+def _fundamentals_useful(facts: dict[str, Any]) -> bool:
+    return any(
+        facts.get(field) is not None
+        for field in (
+            "revenue_growth_yoy",
+            "earnings_growth_yoy",
+            "pe",
+            "ps",
+            "ev_ebitda",
+            "sector",
+            "roe",
+            "fcf_yield",
+        )
+    )
+
+
+def download_fundamentals(
+    listings: list[Listing],
+    *,
+    as_of: str | None = None,
+) -> dict[str, dict[str, Any]]:
     facts: dict[str, dict[str, Any]] = {}
-    
+
     # Filtrar símbolos dados de baja
     active = [item for item in listings if not _is_delisted(item.yahoo_symbol)]
     delisted_count = len(listings) - len(active)
-    
+
     if delisted_count > 0:
-        delisted_symbols = [item.yahoo_symbol for item in listings if _is_delisted(item.yahoo_symbol)]
         print(f"omitiendo {delisted_count} símbolos dados de baja en fundamentales", flush=True)
         for item in listings:
             if _is_delisted(item.yahoo_symbol):
                 facts[item.yahoo_symbol] = empty_fundamentals()
-    
-    total = len(active)
+
+    pending: list[Listing] = []
+    for item in active:
+        if as_of:
+            cached = ranking_cache.load_fundamentals(as_of, item.yahoo_symbol)
+            if cached is not None and _fundamentals_useful(cached):
+                facts[item.yahoo_symbol] = cached
+                continue
+        pending.append(item)
+    if as_of and facts:
+        print(
+            f"fundamentales en caché {len(facts) - delisted_count} de {len(active)}",
+            flush=True,
+        )
+
+    total = len(pending)
     if total == 0:
         return facts
-    
+
     with ThreadPoolExecutor(max_workers=FUNDAMENTAL_WORKERS) as pool:
-        futures = {pool.submit(read_fundamentals, item.yahoo_symbol): item for item in active}
+        futures = {pool.submit(read_fundamentals, item.yahoo_symbol): item for item in pending}
         done = 0
         for future in as_completed(futures):
             item = futures[future]
             done += 1
             try:
-                facts[item.yahoo_symbol] = future.result()
+                result = future.result()
             except Exception:
-                facts[item.yahoo_symbol] = empty_fundamentals()
+                result = empty_fundamentals()
+            facts[item.yahoo_symbol] = result
+            if as_of and _fundamentals_useful(result):
+                ranking_cache.save_fundamentals(as_of, item.yahoo_symbol, result)
+                ranking_cache.mark_fundamentals_done(as_of, [item.yahoo_symbol])
             if done % 25 == 0 or done == total:
-                print(f"fundamentales {done} de {total}", flush=True)
+                print(f"fundamentales {done} de {total} pendientes", flush=True)
+            time.sleep(FUNDAMENTAL_PAUSE_SECONDS)
     return facts
 
 
@@ -410,26 +477,39 @@ _BAR_TTL_SECONDS = 6 * 60 * 60
 
 
 def daily_bars(yahoo_symbol: str) -> list[dict[str, float | str]]:
-    import time
-
     import yfinance as yf
 
     cached = _BAR_CACHE.get(yahoo_symbol)
     now = time.time()
     if cached and now - cached[0] < _BAR_TTL_SECONDS:
         return cached[1]
-    try:
-        frame = yf.download(
-            [yahoo_symbol],
-            period="1y",
-            interval="1d",
-            auto_adjust=True,
-            progress=False,
-            threads=False,
-            group_by="ticker",
-        )
+
+    def attempt() -> list[dict[str, float | str]]:
+        try:
+            frame = yf.download(
+                [yahoo_symbol],
+                period="1y",
+                interval="1d",
+                auto_adjust=True,
+                progress=False,
+                threads=False,
+                group_by="ticker",
+            )
+        except Exception as exc:
+            if looks_like_rate_limit(exc):
+                raise
+            return []
         bars = bars_from_frame(frame, yahoo_symbol)
+        if not bars:
+            raise RuntimeError(f"empty bars for {yahoo_symbol}")
+        return bars
+
+    try:
+        bars = call_with_backoff(
+            attempt,
+            should_retry=lambda exc: looks_like_rate_limit(exc) or "empty bars" in str(exc),
+        )
     except Exception:
         bars = []
-    _BAR_CACHE[yahoo_symbol] = (now, bars)
+    _BAR_CACHE[yahoo_symbol] = (time.time(), bars)
     return bars

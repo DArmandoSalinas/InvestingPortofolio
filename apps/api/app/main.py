@@ -59,13 +59,14 @@ Market = Literal["us", "mx"]
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
-    db = SupabaseRest(settings)
-    try:
-        db.ensure_admin(settings.admin_email)
-    except DatabaseUnavailable as exc:
+    if settings.admin_email:
+        db = SupabaseRest(settings)
+        try:
+            db.ensure_admin(settings.admin_email)
+        except DatabaseUnavailable as exc:
+            db.close()
+            raise RuntimeError("No se pudo preparar el administrador de arranque") from exc
         db.close()
-        raise RuntimeError("No se pudo preparar el administrador de arranque") from exc
-    db.close()
     stop = asyncio.Event()
     task = asyncio.create_task(refresh_loop(stop))
     yield
