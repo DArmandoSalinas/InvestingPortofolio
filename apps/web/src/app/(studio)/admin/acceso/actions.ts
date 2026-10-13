@@ -23,8 +23,13 @@ async function rememberPassword(data: unknown) {
     httpOnly: true,
     sameSite: "lax",
     path: "/admin/acceso",
-    maxAge: 180,
+    maxAge: 60,
   });
+}
+
+export async function clearInviteFlash() {
+  const jar = await cookies();
+  jar.delete("invite_flash");
 }
 
 export async function invite(formData: FormData) {
