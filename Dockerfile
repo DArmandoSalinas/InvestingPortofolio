@@ -1,23 +1,27 @@
-FROM python:3.12-slim
+# Backend image for Railway (`railway up` from the monorepo root).
+# Copies apps/api + supabase so seed/path discovery finds the repo markers.
+FROM python:3.12-slim-bookworm
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    REPO_ROOT=/app \
+    ROOT_DIR=/app \
+    UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy
 
 WORKDIR /app
 
-# Install uv
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
-# Copy API files
 COPY apps/api/pyproject.toml apps/api/uv.lock ./
 COPY apps/api/.python-version ./
-
-# Install dependencies
 RUN uv sync --frozen --no-dev
 
-# Copy application code
 COPY apps/api/app ./app
+COPY supabase ./supabase
 
-# Health check
+EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
   CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:${PORT:-8000}/health')" || exit 1
 
-# Run the application
 CMD ["sh", "-c", "uv run uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

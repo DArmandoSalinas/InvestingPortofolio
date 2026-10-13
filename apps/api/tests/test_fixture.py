@@ -1,5 +1,6 @@
 from app.fixture_data import COMPANIES, RAW_FIELDS
-from app.render_seed import SEED_PATH, render_seed
+from app.paths import seed_sql_path
+from app.render_seed import render_seed
 from app.scoring import composite_of, is_highlight
 from app.sectors import SECTORS
 
@@ -56,6 +57,6 @@ def test_required_cases_exist() -> None:
 
 def test_seed_sql_matches_the_fixture() -> None:
     rendered = render_seed()
-    assert SEED_PATH.read_text() == rendered
+    assert seed_sql_path().read_text() == rendered
     for row in COMPANIES:
         assert row["symbol"] in rendered

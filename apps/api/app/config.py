@@ -5,31 +5,10 @@ from pathlib import Path
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# API_DIR es el directorio apps/api (un nivel arriba de app/)
-API_DIR = Path(__file__).resolve().parent.parent
+from app.paths import repo_root
 
-# ROOT_DIR se puede configurar por variable de entorno, o buscar pyproject.toml/package.json
-def _find_root_dir() -> Path:
-    """
-    Encuentra el directorio raíz del proyecto.
-    Configurable por ROOT_DIR env var, o busca markers como pyproject.toml.
-    """
-    if "ROOT_DIR" in os.environ:
-        return Path(os.environ["ROOT_DIR"])
-    
-    # Buscar hacia arriba desde API_DIR
-    current = API_DIR
-    for _ in range(5):  # Máximo 5 niveles hacia arriba
-        if (current / "package.json").exists() or (current / ".git").exists():
-            return current
-        if current.parent == current:  # Llegamos a la raíz del filesystem
-            break
-        current = current.parent
-    
-    # Si no encontramos el root, usar API_DIR como fallback
-    return API_DIR
-
-ROOT_DIR = _find_root_dir()
+API_DIR = Path(__file__).resolve().parents[1]
+ROOT_DIR = repo_root()
 KEY_NAMES = ("XAI_API_KEY", "GrokAI")
 
 

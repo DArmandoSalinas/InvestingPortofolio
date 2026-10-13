@@ -1,12 +1,10 @@
 import uuid
-from pathlib import Path
 
 from app.fixture_data import AS_OF, COMPANIES, RAW_FIELDS
+from app.paths import repo_root, seed_sql_path
 from app.scoring import composite_of
 
 NAMESPACE = uuid.UUID("6f0c1a2e-9b3d-4e5f-8a71-0c2d4e6f8a10")
-REPO_ROOT = Path(__file__).resolve().parents[3]
-SEED_PATH = REPO_ROOT / "supabase" / "seed.sql"
 
 
 def company_id(market: str, symbol: str) -> uuid.UUID:
@@ -111,9 +109,10 @@ insert into public.score_snapshots (
 
 
 def main() -> None:
-    SEED_PATH.parent.mkdir(parents=True, exist_ok=True)
-    SEED_PATH.write_text(render_seed())
-    print(SEED_PATH)
+    path = seed_sql_path(repo_root())
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(render_seed())
+    print(path)
 
 
 if __name__ == "__main__":
