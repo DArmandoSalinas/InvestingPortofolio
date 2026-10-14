@@ -348,6 +348,15 @@ def normalize_email(value: str) -> str:
     return email
 
 
+class ForgotPassword(BaseModel):
+    email: str
+
+    @field_validator("email")
+    @classmethod
+    def check_email(cls, value: str) -> str:
+        return normalize_email(value)
+
+
 class AccessCreate(BaseModel):
     email: str
     role: Role = "member"

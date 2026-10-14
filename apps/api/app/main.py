@@ -20,6 +20,7 @@ from app.schemas import (
     AccessEntry,
     AccessLink,
     AccessList,
+    ForgotPassword,
     PasswordChange,
     AccessPatch,
     Candle,
@@ -800,6 +801,41 @@ def replace_password(
         raise HTTPException(status_code=400, detail=str(exc)) from None
     except DatabaseUnavailable:
         raise HTTPException(status_code=503, detail="La base de datos no responde") from None
+    return {"ok": True}
+
+
+@app.post("/auth/forgot-password")
+def forgot_password(
+    body: ForgotPassword,
+    db: Annotated[SupabaseRest, Depends(get_db)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> dict[str, bool]:
+    """Emite contraseña temporal por SMTP. Respuesta genérica para no filtrar invitados."""
+    from app.mailer import send_password_reset
+    from app.passwords import issue_temporary_password
+
+    email = body.email
+    try:
+        allowed = db.get_allowed(email)
+    except DatabaseUnavailable:
+        raise HTTPException(status_code=503, detail="La base de datos no responde") from None
+    if not allowed or not allowed.get("active", True):
+        return {"ok": True}
+    try:
+        issue_temporary_password(
+            db,
+            email=email,
+            invited_by="forgot-password",
+            site_url=settings.site_url,
+            send=send_password_reset,
+        )
+        role = "admin" if email == settings.admin_email else str(allowed.get("role") or "member")
+        db.update_profile(email, {"role": role, "active": True, "must_change_password": True})
+    except DatabaseUnavailable:
+        raise HTTPException(status_code=503, detail="La base de datos no responde") from None
+    except Exception:
+        # No filtrar si el usuario existe; el cliente siempre ve éxito.
+        return {"ok": True}
     return {"ok": True}
 
 

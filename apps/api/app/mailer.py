@@ -1,10 +1,14 @@
+import logging
 import smtplib
 from email.message import EmailMessage
+from email.utils import formataddr, parseaddr
 from typing import Any
 
 import httpx
 
 from app.config import Settings, env_value
+
+logger = logging.getLogger(__name__)
 
 
 def smtp_configured() -> bool:
@@ -89,8 +93,36 @@ La invitación expira en 7 días.
 
 ---
 Este es un correo automático de Inversión. Si no esperabas esta invitación, ignóralo."""
-    
+
     return send_text([email], "Invitación a la plataforma de inversión", body)
+
+
+def send_password_reset(email: str, temp_password: str, site_url: str) -> str:
+    """Envía correo de restablecimiento con contraseña temporal."""
+    body = f"""Pediste restablecer tu acceso a Inversión.
+
+Entra aquí: {site_url.rstrip('/')}/login
+
+Tu correo: {email}
+Contraseña temporal: {temp_password}
+
+Al entrar se te pedirá cambiar esta contraseña por una nueva y segura.
+
+Si no pediste restablecerla, ignora este mensaje y usa tu contraseña actual.
+
+---
+Este es un correo automático de Inversión."""
+
+    return send_text([email], "Tu contraseña temporal de Inversión", body)
+
+
+def _smtp_from_header(raw: str) -> str:
+    name, addr = parseaddr(raw or "")
+    if addr and name:
+        # Gmail tolera mejor el From ASCII; evita cortes por acentos en el display name.
+        safe_name = name.encode("ascii", "ignore").decode("ascii").strip() or "Inversion"
+        return formataddr((safe_name, addr))
+    return raw
 
 
 def _smtp(recipients: list[str], subject: str, text: str) -> None:
@@ -100,21 +132,30 @@ def _smtp(recipients: list[str], subject: str, text: str) -> None:
         port = int(port_text)
     except ValueError:
         port = 587
-    sender = env_value("SMTP_FROM")
+    sender = _smtp_from_header(env_value("SMTP_FROM") or "")
     message = EmailMessage()
     message["From"] = sender
     message["To"] = ", ".join(recipients)
     message["Subject"] = subject
     message.set_content(text)
+    user = env_value("SMTP_USER")
+    password = (env_value("SMTP_PASSWORD") or "").replace(" ", "")
     try:
-        with smtplib.SMTP(host, port, timeout=20) as client:
-            client.starttls()
-            user = env_value("SMTP_USER")
-            password = env_value("SMTP_PASSWORD")
-            if user:
-                client.login(user, password)
-            client.send_message(message)
-    except (OSError, smtplib.SMTPException):
+        if port == 465:
+            with smtplib.SMTP_SSL(host, port, timeout=20) as client:
+                if user:
+                    client.login(user, password)
+                client.send_message(message)
+        else:
+            with smtplib.SMTP(host, port, timeout=20) as client:
+                client.ehlo()
+                client.starttls()
+                client.ehlo()
+                if user:
+                    client.login(user, password)
+                client.send_message(message)
+    except (OSError, smtplib.SMTPException) as exc:
+        logger.warning("SMTP falló (%s): %s", type(exc).__name__, str(exc)[:200])
         raise ValueError("No se pudo enviar el correo") from None
 
 

@@ -32,7 +32,8 @@ export default async function LoginPage({
       ) : null}
       {params.enviado === "1" ? (
         <p className="mt-8 text-sm leading-6 text-ink">
-          Si ese correo está invitado, el enlace para restablecer la contraseña llega en unos minutos.
+          Si ese correo está invitado, la contraseña temporal llega en unos minutos. Entra con ella y
+          cámbiala al iniciar sesión.
         </p>
       ) : null}
       {error ? <p className="mt-6 text-sm text-ink">{error}</p> : null}
