@@ -602,22 +602,34 @@ class SupabaseRest:
         """Registra la invitación sin guardar la contraseña (solo metadatos)."""
         from datetime import datetime, timedelta, timezone
 
+        payload = {
+            "email": email,
+            "invited_by": invited_by,
+            "invited_at": datetime.now(timezone.utc).isoformat(),
+            "expires_at": (datetime.now(timezone.utc) + timedelta(days=7)).isoformat(),
+            "used_at": None,
+        }
+        headers = self._service_headers(
+            {"Prefer": "resolution=merge-duplicates,return=minimal"}
+        )
         response = self._request(
             "POST",
             "/rest/v1/invitations",
-            headers=self._service_headers(
-                {"Prefer": "resolution=merge-duplicates,return=minimal"}
-            ),
+            headers=headers,
             params={"on_conflict": "email"},
-            json={
-                "email": email,
-                "invited_by": invited_by,
-                "invited_at": datetime.now(timezone.utc).isoformat(),
-                "expires_at": (datetime.now(timezone.utc) + timedelta(days=7)).isoformat(),
-                "used_at": None,
-            },
+            json=payload,
         )
-
+        # Compatibilidad: si la columna legacy temp_password sigue NOT NULL en prod,
+        # enviamos cadena vacía (nunca la contraseña real) hasta aplicar la migración.
+        if response.status_code >= 400 and "temp_password" in (response.text or ""):
+            payload["temp_password"] = ""
+            response = self._request(
+                "POST",
+                "/rest/v1/invitations",
+                headers=headers,
+                params={"on_conflict": "email"},
+                json=payload,
+            )
         if response.status_code >= 400:
             raise DatabaseUnavailable(response.text[:2000])
 
